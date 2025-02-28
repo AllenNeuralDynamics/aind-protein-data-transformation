@@ -16,18 +16,13 @@ import numpy as np
 import pims
 import xarray_multiscale
 import zarr
-from aind_smartspim_data_transformation.compress.zarr_writer import (
+from aind_protein_data_transformation.compress.zarr_writer import (
     BlockedArrayWriter,
 )
-from aind_smartspim_data_transformation.io.utils import pad_array_n_d
-from aind_smartspim_data_transformation.models import ArrayLike, PathLike
-from dask.array.core import Array
-from dask.base import tokenize
 from numcodecs import blosc
 from ome_zarr.format import CurrentFormat
 from ome_zarr.io import parse_url
 from ome_zarr.writer import write_multiscales_metadata
-from skimage.io import imread as sk_imread
 
 
 def _build_ome(
@@ -300,9 +295,9 @@ def write_ome_ngff_metadata(
     write_multiscales_metadata(group, datasets, fmt, axes_5d, **metadata)
 
 
-def create_smartspim_opts(codec: str, compression_level: int) -> dict:
+def create_czi_opts(codec: str, compression_level: int) -> dict:
     """
-    Creates SmartSPIM options for writing
+    Creates CZI options for writing
     the OMEZarr.
 
     Parameters
@@ -390,10 +385,34 @@ def compute_pyramid(
 
     return [pyramid_level.data for pyramid_level in pyramid], metadata
 
+def pad_array_n_d(arr, dim: int = 5):
+    """
+    Pads a daks array to be in a 5D shape.
 
-def smartspim_channel_zarr_writer(
-    image_data: ArrayLike,
-    output_path: PathLike,
+    Parameters
+    ------------------------
+
+    arr: ArrayLike
+        Dask/numpy array that contains image data.
+    dim: int
+        Number of dimensions that the array will be padded
+
+    Returns
+    ------------------------
+    ArrayLike:
+        Padded dask/numpy array.
+    """
+    if dim > 5:
+        raise ValueError("Padding more than 5 dimensions is not supported.")
+
+    while arr.ndim < dim:
+        arr = arr[np.newaxis, ...]
+    return arr
+
+
+def czi_stack_zarr_writer(
+    image_data,
+    output_path,
     voxel_size: List[float],
     final_chunksize: List[int],
     scale_factor: List[int],
@@ -410,7 +429,7 @@ def smartspim_channel_zarr_writer(
     Parameters
     ----------
     image_data: ArrayLike
-        Lazy readed SmartSPIM channel data
+        Lazy readed CZI stack data
 
     output_path: PathLike
         Path where we want to write the OMEZarr
@@ -479,11 +498,11 @@ def smartspim_channel_zarr_writer(
         for _ in range(image_data.shape[1])
     ]
 
-    # Setting values for SmartSPIM
+    # Setting values for CZI
     # Ideally we would use da.percentile(image_data, (0.1, 95))
     # However, it would take so much time and resources and it is
     # not used that much on neuroglancer
-    channel_startend = [(0.0, 350.0) for _ in range(image_data.shape[1])]
+    channel_startend = [(0.0, 550.0) for _ in range(image_data.shape[1])]
 
     new_channel_group = root_group.create_group(
         name=image_name, overwrite=True
