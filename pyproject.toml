@@ -17,6 +17,12 @@ readme = "README.md"
 dynamic = ["version"]
 
 dependencies = [
+    'zarr',
+    'dask[distributed]',
+    'xarray_multiscale',
+    'bioio',
+    'bioio-czi',
+    'ome-zarr',
 ]
 
 [project.optional-dependencies]

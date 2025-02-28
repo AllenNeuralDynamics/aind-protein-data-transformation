@@ -6,14 +6,12 @@ to zarr.
 """
 
 import logging
-import os
 import time
 from typing import Dict, Hashable, List, Optional, Sequence, Tuple, Union, cast
 
 import dask
 import dask.array as da
 import numpy as np
-import pims
 import xarray_multiscale
 import zarr
 from numcodecs import blosc
@@ -596,7 +594,7 @@ def example():
     from bioio import BioImage
 
     czi_test_stack = Path(
-        "/Users/camilo.laiton/repositories/Protein/4CAnkyrin-G_Z0.36_L5.czi"
+        "/Users/camilo.laiton/repositories/Protein/Gel1_Z2_CRTX_L3_cellanddendrites2_z-stack.czi"
     )
 
     if czi_test_stack.exists():
@@ -613,18 +611,21 @@ def example():
 
         writing_opts = create_czi_opts(codec="zstd", compression_level=3)
 
-        czi_stack_zarr_writer(
-            image_data=da.squeeze(czi_file_reader.dask_data),
-            output_path=f"./test_compress",
-            voxel_size=list(czi_file_reader.physical_pixel_sizes),
-            final_chunksize=[128, 128, 128],
-            scale_factor=[2, 2, 2],
-            n_lvls=4,
-            channel_name=czi_test_stack.stem,
-            logger=logging.Logger(name="test"),
-            stack_name=f"{czi_test_stack.stem}.zarr",
-            writing_options=writing_opts["compressor"],
-        )
+        lazy_data = da.squeeze(czi_file_reader.dask_data)
+        # for channel_name in
+        for i, chn_name in enumerate(czi_file_reader.channel_names):
+            czi_stack_zarr_writer(
+                image_data=lazy_data[i],
+                output_path=f"./{czi_test_stack.stem}",
+                voxel_size=list(czi_file_reader.physical_pixel_sizes),
+                final_chunksize=[128, 128, 128],
+                scale_factor=[2, 2, 2],
+                n_lvls=4,
+                channel_name=czi_test_stack.stem,
+                logger=logging.Logger(name="test"),
+                stack_name=f"{chn_name}.zarr",
+                writing_options=writing_opts["compressor"],
+            )
 
     else:
         print(f"File does not exist: {czi_test_stack}")
