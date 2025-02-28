@@ -16,13 +16,14 @@ import numpy as np
 import pims
 import xarray_multiscale
 import zarr
-from aind_protein_data_transformation.compress.zarr_writer import (
-    BlockedArrayWriter,
-)
 from numcodecs import blosc
 from ome_zarr.format import CurrentFormat
 from ome_zarr.io import parse_url
 from ome_zarr.writer import write_multiscales_metadata
+
+from aind_protein_data_transformation.compress.zarr_writer import (
+    BlockedArrayWriter,
+)
 
 
 def _build_ome(
@@ -312,7 +313,7 @@ def create_czi_opts(codec: str, compression_level: int) -> dict:
     -------
     dict
         Dictionary with the blosc compression
-        to write the SmartSPIM image
+        to write the CZI image
     """
     return {
         "compressor": blosc.Blosc(
@@ -384,6 +385,7 @@ def compute_pyramid(
     )[:n_lvls]
 
     return [pyramid_level.data for pyramid_level in pyramid], metadata
+
 
 def pad_array_n_d(arr, dim: int = 5):
     """
@@ -584,3 +586,49 @@ def czi_stack_zarr_writer(
     logger.info(f"Time to write the dataset: {end_time - start_time}")
     print(f"Time to write the dataset: {end_time - start_time}")
     logger.info(f"Written pyramid: {written_pyramid}")
+
+
+def example():
+    from pathlib import Path
+
+    import bioio_czi
+    import dask.array as da
+    from bioio import BioImage
+
+    czi_test_stack = Path(
+        "/Users/camilo.laiton/repositories/Protein/4CAnkyrin-G_Z0.36_L5.czi"
+    )
+
+    if czi_test_stack.exists():
+        czi_file_reader = BioImage(
+            str(czi_test_stack), reader=bioio_czi.Reader
+        )
+
+        print("Dask data: ", czi_file_reader.dask_data)
+        print("shape: ", czi_file_reader.shape)
+        print("dims: ", czi_file_reader.dims)
+        print("metadata: ", czi_file_reader.metadata)
+        print("channel_names: ", czi_file_reader.channel_names)
+        print("physical_pixel_sizes: ", czi_file_reader.physical_pixel_sizes)
+
+        writing_opts = create_czi_opts(codec="zstd", compression_level=3)
+
+        czi_stack_zarr_writer(
+            image_data=da.squeeze(czi_file_reader.dask_data),
+            output_path=f"./test_compress",
+            voxel_size=list(czi_file_reader.physical_pixel_sizes),
+            final_chunksize=[128, 128, 128],
+            scale_factor=[2, 2, 2],
+            n_lvls=4,
+            channel_name=czi_test_stack.stem,
+            logger=logging.Logger(name="test"),
+            stack_name=f"{czi_test_stack.stem}.zarr",
+            writing_options=writing_opts["compressor"],
+        )
+
+    else:
+        print(f"File does not exist: {czi_test_stack}")
+
+
+if __name__ == "__main__":
+    example()
