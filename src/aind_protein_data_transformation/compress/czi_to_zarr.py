@@ -13,13 +13,12 @@ from typing import Dict, Hashable, List, Optional, Sequence, Tuple, Union, cast
 import dask
 import dask.array as da
 import numpy as np
-import pims
 import xarray_multiscale
 import zarr
 from numcodecs import blosc
-from ome_zarr.format import CurrentFormat
-from ome_zarr.io import parse_url
-from ome_zarr.writer import write_multiscales_metadata
+# from ome_zarr.format import CurrentFormat
+# from ome_zarr.io import parse_url
+# from ome_zarr.writer import write_multiscales_metadata
 
 from aind_protein_data_transformation.compress.zarr_writer import (
     BlockedArrayWriter,
@@ -411,6 +410,17 @@ def pad_array_n_d(arr, dim: int = 5):
         arr = arr[np.newaxis, ...]
     return arr
 
+def get_shard_and_chunk_size(image_shape, shard_size, chunksize):
+    
+    shard_dims = tuple(min(dim, shard_size[i]) for i, dim in enumerate(image_shape))
+    chunk_dims = tuple(min(dim, chunksize[i]) for i, dim in enumerate(image_shape))
+
+    shard_dims = tuple(
+        (shard // chunk) * chunk if shard % chunk != 0 else shard
+        for shard, chunk in zip(shard_dims, chunk_dims)
+    )
+
+    return shard_dims, chunk_dims
 
 def czi_stack_zarr_writer(
     image_data,
@@ -423,6 +433,7 @@ def czi_stack_zarr_writer(
     logger: logging.Logger,
     stack_name: str,
     writing_options,
+    shard_shape
 ):
     """
     Writes a fused Zeiss channel in OMEZarr
@@ -466,20 +477,29 @@ def czi_stack_zarr_writer(
 
     """
 
+    shard_shape = tuple([1] * (5 - len(shard_shape))) + shard_shape
+    final_chunksize = tuple([1] * (5 - len(final_chunksize))) + tuple(final_chunksize)
+    image_data = pad_array_n_d(arr=image_data)
+
+    shard_shape, final_chunksize  = get_shard_and_chunk_size(
+        image_data.shape,
+        shard_size=shard_shape,
+        chunksize=final_chunksize
+    )
+
     # Getting channel color
     channel_colors = None
 
     # Rechunking dask array
     image_data = image_data.rechunk(final_chunksize)
-    image_data = pad_array_n_d(arr=image_data)
 
     image_name = stack_name
 
     print(f"Writing {image_data} from {stack_name} to {output_path}")
 
     # Creating Zarr dataset
-    store = parse_url(path=output_path, mode="w").store
-    root_group = zarr.group(store=store)
+    # store = parse_url(path=output_path, mode="w").store
+    root_group = zarr.group(output_path)
 
     # Using 1 thread since is in single machine.
     # Avoiding the use of multithreaded due to GIL
@@ -511,19 +531,19 @@ def czi_stack_zarr_writer(
     )
 
     # Writing OME-NGFF metadata
-    write_ome_ngff_metadata(
-        group=new_channel_group,
-        arr=image_data,
-        image_name=image_name,
-        n_lvls=n_lvls,
-        scale_factors=scale_factor,
-        voxel_size=voxel_size,
-        channel_names=[channel_name],
-        channel_colors=channel_colors,
-        channel_minmax=channel_minmax,
-        channel_startend=channel_startend,
-        metadata=_get_pyramid_metadata(),
-    )
+    # write_ome_ngff_metadata(
+    #     group=new_channel_group,
+    #     arr=image_data,
+    #     image_name=image_name,
+    #     n_lvls=n_lvls,
+    #     scale_factors=scale_factor,
+    #     voxel_size=voxel_size,
+    #     channel_names=[channel_name],
+    #     channel_colors=channel_colors,
+    #     channel_minmax=channel_minmax,
+    #     channel_startend=channel_startend,
+    #     metadata=_get_pyramid_metadata(),
+    # )
 
     # performance_report_path = f"{output_path}/report_{stack_name}.html"
 
@@ -568,16 +588,31 @@ def czi_stack_zarr_writer(
         logger.info(f"[level {level}]: pyramid level: {array_to_write}")
 
         # Create the scale dataset
-        pyramid_group = new_channel_group.create_dataset(
-            name=level,
-            shape=array_to_write.shape,
-            chunks=array_to_write.chunksize,
-            dtype=array_to_write.dtype,
-            compressor=writing_options,
-            dimension_separator="/",
-            overwrite=True,
+
+        shard_shape, final_chunksize  = get_shard_and_chunk_size(
+            array_to_write.shape,
+            shard_size=shard_shape,
+            chunksize=array_to_write.chunksize
         )
 
+        print(array_to_write.shape, array_to_write.chunksize, shard_shape)
+
+        pyramid_group = new_channel_group.create_array(
+            name=f"{level}",
+            shape=array_to_write.shape,
+            chunks=final_chunksize,
+            shards=shard_shape,
+            dtype=array_to_write.dtype,
+            compressors=zarr.codecs.BloscCodec(
+                cname="zstd",
+                clevel=3,
+                shuffle=zarr.codecs.BloscShuffle.shuffle
+            ),
+            chunk_key_encoding={"name": "default", "separator": "/"},
+            # zarr_format=3,
+            overwrite=True,
+        )
+        
         # Block Zarr Writer
         BlockedArrayWriter.store(array_to_write, pyramid_group, block_shape)
         written_pyramid.append(array_to_write)
@@ -596,7 +631,7 @@ def example():
     from bioio import BioImage
 
     czi_test_stack = Path(
-        "/Users/camilo.laiton/repositories/Protein/4CAnkyrin-G_Z0.36_L5.czi"
+        "/Users/camilo.laiton/repositories/Protein/Gel1_Z2_CRTX_L3_cellanddendrites2_z-stack.czi"
     )
 
     if czi_test_stack.exists():
@@ -613,18 +648,23 @@ def example():
 
         writing_opts = create_czi_opts(codec="zstd", compression_level=3)
 
-        czi_stack_zarr_writer(
-            image_data=da.squeeze(czi_file_reader.dask_data),
-            output_path=f"./test_compress",
-            voxel_size=list(czi_file_reader.physical_pixel_sizes),
-            final_chunksize=[128, 128, 128],
-            scale_factor=[2, 2, 2],
-            n_lvls=4,
-            channel_name=czi_test_stack.stem,
-            logger=logging.Logger(name="test"),
-            stack_name=f"{czi_test_stack.stem}.zarr",
-            writing_options=writing_opts["compressor"],
-        )
+        lazy_data = da.squeeze(czi_file_reader.dask_data)
+        # for channel_name in
+        for i, chn_name in enumerate(czi_file_reader.channel_names):
+            
+            czi_stack_zarr_writer(
+                image_data=lazy_data[i],
+                output_path=f"./{czi_test_stack.stem}",
+                voxel_size=list(czi_file_reader.physical_pixel_sizes),
+                final_chunksize=[128, 128, 128],
+                scale_factor=[2, 2, 2],
+                n_lvls=4,
+                channel_name=chn_name,
+                logger=logging.Logger(name="test"),
+                stack_name=f"{chn_name}.zarr",
+                writing_options=writing_opts["compressor"],
+                shard_shape=(512, 512, 512)
+            )
 
     else:
         print(f"File does not exist: {czi_test_stack}")

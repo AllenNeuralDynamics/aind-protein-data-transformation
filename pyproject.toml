@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "aind-protein-data-transformation"
 description = "Generated from aind-library-template"
 license = {text = "MIT"}
-requires-python = ">=3.9.2"
+requires-python = ">=3.11"
 authors = [
     {name = "Allen Institute for Neural Dynamics"}
 ]
@@ -17,6 +17,12 @@ readme = "README.md"
 dynamic = ["version"]
 
 dependencies = [
+    'zarr==3.0.4',
+    'dask[distributed]==2025.2.0',
+    'xarray_multiscale==1.1.0',
+    'bioio==1.2.0',
+    'bioio-czi==1.0.2',
+    'ome-zarr'
 ]
 
 [project.optional-dependencies]
