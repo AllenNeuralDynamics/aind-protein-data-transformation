@@ -17,11 +17,11 @@ readme = "README.md"
 dynamic = ["version"]
 
 dependencies = [
-    'zarr',
-    'dask[distributed]',
-    'xarray_multiscale',
-    'bioio',
-    'bioio-czi',
+    'zarr==2.18.2',
+    'dask[distributed]==2024.8.0',
+    'xarray_multiscale==1.1.0',
+    'bioio==1.2.0',
+    'bioio-czi==1.0.2',
     'ome-zarr',
 ]
 
