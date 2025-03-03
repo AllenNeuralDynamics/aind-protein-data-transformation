@@ -55,9 +55,7 @@ def pad_array_n_d(arr, dim: int = 5):
     return arr
 
 
-def extract_data(
-    arr, last_dimensions: Optional[int] = None
-):
+def extract_data(arr, last_dimensions: Optional[int] = None):
     """
     Extracts n dimensional data (numpy array or dask array)
     given expanded dimensions.

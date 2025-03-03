@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -9,6 +10,7 @@ from time import time
 from typing import Any, List, Optional
 
 import bioio_czi
+import dask.array as da
 from aind_data_transformation.core import GenericEtl, JobResponse, get_parser
 from bioio import BioImage
 from numcodecs.blosc import Blosc
@@ -20,18 +22,26 @@ from aind_protein_data_transformation.models import (
     CompressorName,
     ZeissJobSettings,
 )
-import bioio_czi
-from bioio import BioImage
-import dask.array as da
-
-import re
-
 from aind_protein_data_transformation.utils import utils
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "WARNING"))
 
+
 class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
     """Job to handle compressing and uploading Zeiss data."""
+
+    @staticmethod
+    def partition_list(
+        lst: List[Any], num_of_partitions: int
+    ) -> List[List[Any]]:
+        """Partitions a list"""
+        accumulated_list = []
+        for _ in range(num_of_partitions):
+            accumulated_list.append([])
+        for list_item_index, list_item in enumerate(lst):
+            a_index = list_item_index % num_of_partitions
+            accumulated_list[a_index].append(list_item)
+        return accumulated_list
 
     def _get_partitioned_list_of_stack_paths(self) -> List[List[Path]]:
         """
@@ -44,10 +54,12 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
             if p.is_file():
                 total_counter += 1
                 all_stack_paths.append(p)
-        
+
         # Important to sort paths so every node computes the same list
         all_stack_paths.sort(key=lambda x: str(x))
-        return all_stack_paths
+        return self.partition_list(
+            all_stack_paths, self.job_settings.num_of_partitions
+        )
 
     @staticmethod
     def _get_voxel_resolution(acquisition_path: Path) -> List[float]:
@@ -103,20 +115,20 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
 
         """
         compressor = self._get_compressor()
+        # TODO: Coordinate with Carson Berry to make it compatible with Z1 uploads
+
         # acquisition_path = Path(self.job_settings.input_source).joinpath(
         #     "acquisition.json"
         # )
         # voxel_size_zyx = self._get_voxel_resolution(
         #     acquisition_path=acquisition_path
         # )
-        # logging.info(
-        #     f"Stacks to process: {stacks_to_process}, - Voxel res: "
-        #     f"{voxel_size_zyx}"
-        # )
 
         for stack in stacks_to_process:
             logging.info(f"Converting {stack}")
             stack_name = stack.name
+            root_name = stack.parent.name
+
             match = re.match(r"(.+)\((\d+)\)\.czi", stack_name)
 
             if match:
@@ -124,19 +136,27 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
                 stack_name = f"{base_name}_{number}"
 
             else:
-                raise ValueError(f"Stack name was not able to be parsed: {stack}")
+                raise ValueError(
+                    f"Stack name was not able to be parsed: {stack}"
+                )
 
             output_path = Path(self.job_settings.output_directory).joinpath(
-                stack_name
+                root_name
             )
 
-            czi_file_reader = BioImage(
-                str(stack), reader=bioio_czi.Reader
-            )
+            czi_file_reader = BioImage(str(stack), reader=bioio_czi.Reader)
 
             voxel_size_zyx = czi_file_reader.physical_pixel_sizes
-
+            voxel_size_zyx = [
+                voxel_size_zyx.Z,
+                voxel_size_zyx.Y,
+                voxel_size_zyx.X,
+            ]
             delayed_stack = da.squeeze(czi_file_reader.dask_data)
+
+            logging.info(
+                f"Voxel resolution ZYX {voxel_size_zyx} for {stack} - {delayed_stack} - output: {output_path}"
+            )
 
             czi_stack_zarr_writer(
                 image_data=delayed_stack,
@@ -154,7 +174,7 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
             if self.job_settings.s3_location is not None:
                 channel_zgroup_file = output_path / ".zgroup"
                 s3_channel_zgroup_file = (
-                    f"{self.job_settings.s3_location}/{stack_name}/.zgroup"
+                    f"{self.job_settings.s3_location}/{root_name}/.zgroup"
                 )
                 logging.info(
                     f"Uploading {channel_zgroup_file} to "
@@ -166,7 +186,7 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
                 ome_zarr_stack_name = f"{stack_name}.ome.zarr"
                 ome_zarr_stack_path = output_path.joinpath(ome_zarr_stack_name)
                 s3_stack_dir = (
-                    f"{self.job_settings.s3_location}/{stack_name}/"
+                    f"{self.job_settings.s3_location}/{root_name}/"
                     f"{ome_zarr_stack_name}"
                 )
                 logging.info(
@@ -205,6 +225,7 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
 
         partitioned_list = self._get_partitioned_list_of_stack_paths()
 
+        # TODO: Coordinate with Carson Berry to upload derivatives folder
         # Upload derivatives folder
         # if self.job_settings.partition_to_process == 0:
         #     self._upload_derivatives_folder()
@@ -230,9 +251,7 @@ def job_entrypoint(sys_args: list):
             cli_args.job_settings
         )
     elif cli_args.config_file is not None:
-        job_settings = ZeissJobSettings.from_config_file(
-            cli_args.config_file
-        )
+        job_settings = ZeissJobSettings.from_config_file(cli_args.config_file)
     else:
         # Construct settings from env vars
         job_settings = ZeissJobSettings()

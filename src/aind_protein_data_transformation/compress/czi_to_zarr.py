@@ -587,6 +587,9 @@ def czi_stack_zarr_writer(
 
 
 def example():
+    """
+    Conversion example
+    """
     from pathlib import Path
 
     import bioio_czi

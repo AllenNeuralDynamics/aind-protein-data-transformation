@@ -1,4 +1,4 @@
-"""Helpful models used in the ephys compression job"""
+"""Helpful models used in the compression job"""
 
 from enum import Enum
 from pathlib import Path
