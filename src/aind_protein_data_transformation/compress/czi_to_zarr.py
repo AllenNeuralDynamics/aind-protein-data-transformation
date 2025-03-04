@@ -22,6 +22,7 @@ from ome_zarr.writer import write_multiscales_metadata
 from aind_protein_data_transformation.compress.zarr_writer import (
     BlockedArrayWriter,
 )
+from aind_protein_data_transformation.utils.utils import pad_array_n_d
 
 
 def _build_ome(
@@ -383,31 +384,6 @@ def compute_pyramid(
     )[:n_lvls]
 
     return [pyramid_level.data for pyramid_level in pyramid], metadata
-
-
-def pad_array_n_d(arr, dim: int = 5):
-    """
-    Pads a daks array to be in a 5D shape.
-
-    Parameters
-    ------------------------
-
-    arr: ArrayLike
-        Dask/numpy array that contains image data.
-    dim: int
-        Number of dimensions that the array will be padded
-
-    Returns
-    ------------------------
-    ArrayLike:
-        Padded dask/numpy array.
-    """
-    if dim > 5:
-        raise ValueError("Padding more than 5 dimensions is not supported.")
-
-    while arr.ndim < dim:
-        arr = arr[np.newaxis, ...]
-    return arr
 
 
 def czi_stack_zarr_writer(

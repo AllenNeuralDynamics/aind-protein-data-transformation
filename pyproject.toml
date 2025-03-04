@@ -17,6 +17,7 @@ readme = "README.md"
 dynamic = ["version"]
 
 dependencies = [
+    'aind-data-transformation>=0.0.18',
     'zarr==2.18.2',
     'dask[distributed]==2024.8.0',
     'xarray_multiscale==1.1.0',
@@ -33,7 +34,8 @@ dev = [
     'interrogate',
     'isort',
     'Sphinx',
-    'furo'
+    'furo',
+    'natsort'
 ]
 
 [tool.setuptools.packages.find]

@@ -13,7 +13,7 @@ import numpy as np
 from aind_protein_data_transformation.models import ArrayLike, PathLike
 
 
-def add_leading_dim(data):
+def add_leading_dim(data: ArrayLike) -> ArrayLike:
     """
     Adds a new dimension to existing data.
     Parameters
@@ -30,7 +30,7 @@ def add_leading_dim(data):
     return data[None, ...]
 
 
-def pad_array_n_d(arr, dim: int = 5):
+def pad_array_n_d(arr: ArrayLike, dim: int = 5) -> ArrayLike:
     """
     Pads a daks array to be in a 5D shape.
 
@@ -55,7 +55,9 @@ def pad_array_n_d(arr, dim: int = 5):
     return arr
 
 
-def extract_data(arr, last_dimensions: Optional[int] = None):
+def extract_data(
+    arr: ArrayLike, last_dimensions: Optional[int] = None
+) -> ArrayLike:
     """
     Extracts n dimensional data (numpy array or dask array)
     given expanded dimensions.
