@@ -255,7 +255,7 @@ def job_entrypoint(sys_args: list):
     else:
         # Construct settings from env vars
         job_settings = ZeissJobSettings()
-    job = ZeissJobSettings(job_settings=job_settings)
+    job = ZeissCompressionJob(job_settings=job_settings)
     job_response = job.run_job()
     logging.info(job_response.model_dump_json())
 
