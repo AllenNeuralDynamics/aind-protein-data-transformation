@@ -136,9 +136,7 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
                 stack_name = f"{base_name}_{number}"
 
             else:
-                raise ValueError(
-                    f"Stack name was not able to be parsed: {stack}"
-                )
+                stack_name = f"{stack_name}_0"
 
             output_path = Path(self.job_settings.output_directory).joinpath(
                 root_name
@@ -154,9 +152,11 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
             ]
             delayed_stack = da.squeeze(czi_file_reader.dask_data)
 
-            logging.info(
-                f"Voxel resolution ZYX {voxel_size_zyx} for {stack} - {delayed_stack} - output: {output_path}"
+            msg = (
+                f"Voxel resolution ZYX {voxel_size_zyx} for {stack} "
+                f"with name {stack_name} - {delayed_stack} - output: {output_path}"
             )
+            logging.info(msg)
 
             czi_stack_zarr_writer(
                 image_data=delayed_stack,
