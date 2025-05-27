@@ -393,11 +393,11 @@ def _downscale_origin(
         current_voxel_size = next_voxel_size
 
         # Append the new origin
-        new_origins.append(float([0, 0] + current_origin.tolist()))
+        new_origins.append([0.0, 0.0] + current_origin.tolist())
 
     # Ensure the initial origin is 5D
     if len(new_origins[0]) < 5:
-        new_origins[0] = float([0, 0] + new_origins[0])
+        new_origins[0] = [0.0, 0.0] + new_origins[0]
 
     return new_origins
 
