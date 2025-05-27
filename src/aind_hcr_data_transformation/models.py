@@ -2,7 +2,7 @@
 
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional, Union, Literal
+from typing import List, Literal, Optional, Union
 
 from aind_data_transformation.core import BasicJobSettings
 from numcodecs import Blosc
@@ -76,7 +76,9 @@ class ZeissJobSettings(BasicJobSettings):
         description="The number of levels of the image pyramid",
         title="Downsample Levels",
     )
-    downsample_mode: Literal["stride", "median", "mode", "mean", "min", "max"] = Field(
+    downsample_mode: Literal[
+        "stride", "median", "mode", "mean", "min", "max"
+    ] = Field(
         default="mean",
         description="Downsample mode",
         title="Downsample Mode",
