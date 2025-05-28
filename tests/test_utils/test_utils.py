@@ -5,6 +5,7 @@ Unit tests of io utilities
 import os
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 import numpy as np
 
@@ -15,9 +16,6 @@ RESOURCES_DIR = (
 )
 
 JSON_FILE_PATH = RESOURCES_DIR / "local_json.json"
-
-from pathlib import Path
-from unittest.mock import Mock, patch
 
 
 class IoUtilitiesTest(unittest.TestCase):
@@ -197,7 +195,7 @@ class TestReadSlicesCzi(unittest.TestCase):
             mock_squeeze.return_value = "squeezed_result"
 
             # Test with explicit max_workers > 1 and slice count > 1
-            result = utils.read_slices_czi(
+            utils.read_slices_czi(
                 self.mock_czi_stream,
                 self.subblock_directory,
                 10,
@@ -234,7 +232,7 @@ class TestReadSlicesCzi(unittest.TestCase):
             )
             mock_executor_class.return_value.__exit__.return_value = None
 
-            result = utils.read_slices_czi(
+            utils.read_slices_czi(
                 self.mock_czi_stream,
                 self.subblock_directory,
                 10,
@@ -245,7 +243,8 @@ class TestReadSlicesCzi(unittest.TestCase):
             # Debug: Check if ThreadPoolExecutor was called
             if mock_executor_class.called:
                 print(
-                    f"ThreadPoolExecutor call args: {mock_executor_class.call_args}"
+                    "ThreadPoolExecutor call args:"
+                    f"{mock_executor_class.call_args}"
                 )
 
             # Verify ThreadPoolExecutor was used
@@ -298,7 +297,7 @@ class TestReadSlicesCzi(unittest.TestCase):
             )
             mock_executor_class.return_value.__exit__.return_value = None
 
-            result = utils.read_slices_czi(
+            utils.read_slices_czi(
                 self.mock_czi_stream,
                 self.subblock_directory,
                 5,
@@ -306,7 +305,8 @@ class TestReadSlicesCzi(unittest.TestCase):
                 max_workers=8,  # High number to ensure > 1
             )
 
-            # This should work if ThreadPoolExecutor is imported in the utils module
+            # This should work if ThreadPoolExecutor
+            # is imported in the utils module
             if mock_executor_class.called:
                 mock_executor_class.assert_called_once()
                 mock_executor.map.assert_called_once()
@@ -346,12 +346,12 @@ class TestReadSlicesCzi(unittest.TestCase):
             patch(
                 "concurrent.futures.ThreadPoolExecutor",
                 side_effect=track_parallel_creation,
-            ) as mock_executor_class,
+            ),
         ):
 
             mock_squeeze.return_value = "squeezed_result"
 
-            result = utils.read_slices_czi(
+            utils.read_slices_czi(
                 self.mock_czi_stream,
                 self.subblock_directory,
                 10,

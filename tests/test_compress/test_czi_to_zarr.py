@@ -1,6 +1,5 @@
 """Test suite for the ZarrV3 data transformation module."""
 
-import asyncio
 import logging
 import unittest
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
@@ -179,7 +178,8 @@ class TestCreateDownsampleDataset(unittest.IsolatedAsyncioTestCase):
 
         mock_downsampled_data = np.zeros((1, 1, 50, 100, 150), dtype=np.uint16)
 
-        # Create a mock for the downsampled dataset (returned on first tensorstore.open call)
+        # Create a mock for the downsampled dataset
+        # (returned on first tensorstore.open call)
         mock_downsampled_dataset = AsyncMock()
         mock_downsampled_dataset.base = mock_source_dataset
         mock_downsampled_dataset.shape = [1, 1, 50, 100, 150]
@@ -308,25 +308,31 @@ class TestCreateDownsampleDataset(unittest.IsolatedAsyncioTestCase):
 
     @patch("aind_hcr_data_transformation.compress.czi_to_zarr.write_json")
     @patch(
-        "aind_hcr_data_transformation.compress.czi_to_zarr.create_downsample_dataset",
+        "aind_hcr_data_transformation.compress."
+        "czi_to_zarr.create_downsample_dataset",
         new_callable=AsyncMock,
     )
     @patch(
-        "aind_hcr_data_transformation.compress.czi_to_zarr.write_tasks",
+        "aind_hcr_data_transformation.compress." "czi_to_zarr.write_tasks",
         new_callable=AsyncMock,
     )
-    @patch("aind_hcr_data_transformation.compress.czi_to_zarr.ts.open")
+    @patch("aind_hcr_data_transformation.compress." "czi_to_zarr.ts.open")
     @patch(
-        "aind_hcr_data_transformation.compress.czi_to_zarr.czi_block_generator"
+        "aind_hcr_data_transformation.compress."
+        "czi_to_zarr.czi_block_generator"
     )
-    @patch("aind_hcr_data_transformation.compress.czi_to_zarr.create_spec")
+    @patch("aind_hcr_data_transformation.compress." "czi_to_zarr.create_spec")
     @patch(
-        "aind_hcr_data_transformation.compress.czi_to_zarr._get_pyramid_metadata"
+        "aind_hcr_data_transformation.compress."
+        "czi_to_zarr._get_pyramid_metadata"
     )
     @patch(
-        "aind_hcr_data_transformation.compress.czi_to_zarr.write_ome_ngff_metadata"
+        "aind_hcr_data_transformation.compress.czi_to_zarr"
+        ".write_ome_ngff_metadata"
     )
-    @patch("aind_hcr_data_transformation.compress.czi_to_zarr.czifile.CziFile")
+    @patch(
+        "aind_hcr_data_transformation.compress.czi_to_zarr" ".czifile.CziFile"
+    )
     def test_czi_stack_zarr_writer(
         self,
         mock_czifile,

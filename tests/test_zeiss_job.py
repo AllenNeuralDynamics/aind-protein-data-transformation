@@ -41,7 +41,10 @@ class ZeissCompressionTest(unittest.TestCase):
 
     @patch("aind_hcr_data_transformation.utils.utils.read_json_as_dict")
     def test_valid_acquisition_file(self, mock_read_json):
-        """Tests that the voxel resolution is correctly extracted from a valid acquisition.json file"""
+        """
+        Tests that the voxel resolution is correctly
+        extracted from a valid acquisition.json file
+        """
         mock_read_json.return_value = {
             "tiles": [
                 {
@@ -60,7 +63,10 @@ class ZeissCompressionTest(unittest.TestCase):
         self.assertEqual(result, [0.3, 0.4, 0.5])
 
     def test_missing_file(self):
-        """Tests that a FileNotFoundError is raised if the acquisition file is missing"""
+        """
+        Tests that a FileNotFoundError is raised
+        if the acquisition file is missing
+        """
         mock_path = MagicMock(spec=Path)
         mock_path.is_file.return_value = False
 
