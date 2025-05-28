@@ -239,11 +239,11 @@ def _validate_axes_for_format(axes: List[Dict], fmt: Format):
     if axes is not None:
         if fmt.version in ("0.1", "0.2"):
             print("axes ignored for version 0.1 or 0.2")
-            return None, -1
+            axes = None
         else:
             axes = _get_valid_axes(axes=axes, fmt=fmt)
-            return axes, len(axes) if axes is not None else -1
-    return None, -1
+
+    return axes, len(axes) if axes is not None else -1
 
 
 def _validate_omero_metadata(omero_metadata: Dict):

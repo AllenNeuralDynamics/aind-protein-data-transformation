@@ -1,13 +1,12 @@
-"""Tests for the SmartSPIM data transfer"""
+"""Tests for the Z1 data transfer"""
 
 import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from natsort import natsorted
-from numcodecs.blosc import Blosc
 
 from aind_hcr_data_transformation.models import ZeissJobSettings
 from aind_hcr_data_transformation.zeiss_job import ZeissCompressionJob
@@ -39,6 +38,53 @@ class ZeissCompressionTest(unittest.TestCase):
         )
         cls.basic_job_settings = basic_job_settings
         cls.basic_job = ZeissCompressionJob(job_settings=basic_job_settings)
+
+    @patch("aind_hcr_data_transformation.utils.utils.read_json_as_dict")
+    def test_valid_acquisition_file(self, mock_read_json):
+        """Tests that the voxel resolution is correctly extracted from a valid acquisition.json file"""
+        mock_read_json.return_value = {
+            "tiles": [
+                {
+                    "coordinate_transformations": [
+                        {"type": "translation", "translation": [1, 2, 3]},
+                        {"type": "scale", "scale": [0.5, 0.4, 0.3]},
+                    ]
+                }
+            ]
+        }
+
+        mock_path = MagicMock(spec=Path)
+        mock_path.is_file.return_value = True
+
+        result = ZeissCompressionJob._get_voxel_resolution(mock_path)
+        self.assertEqual(result, [0.3, 0.4, 0.5])
+
+    def test_missing_file(self):
+        """Tests that a FileNotFoundError is raised if the acquisition file is missing"""
+        mock_path = MagicMock(spec=Path)
+        mock_path.is_file.return_value = False
+
+        with self.assertRaises(FileNotFoundError):
+            ZeissCompressionJob._get_voxel_resolution(mock_path)
+
+    @patch("aind_hcr_data_transformation.utils.utils.read_json_as_dict")
+    def test_missing_scale(self, mock_read_json):
+        """Tests that an IndexError is raised if no scale is present"""
+        mock_read_json.return_value = {
+            "tiles": [
+                {
+                    "coordinate_transformations": [
+                        {"type": "translation", "translation": [1, 2, 3]}
+                    ]
+                }
+            ]
+        }
+
+        mock_path = MagicMock(spec=Path)
+        mock_path.is_file.return_value = True
+
+        with self.assertRaises(IndexError):  # [0] access fails if no scale
+            ZeissCompressionJob._get_voxel_resolution(mock_path)
 
     def test_partition_list(self):
         """Tests partition list method"""
@@ -72,9 +118,11 @@ class ZeissCompressionTest(unittest.TestCase):
         """Tests _get_compressor method"""
 
         compressor = self.basic_job._get_compressor()
-        expected_compressor = Blosc(
-            cname="zstd", clevel=3, shuffle=Blosc.SHUFFLE, blocksize=0
-        )
+        expected_compressor = {
+            "cname": "zstd",
+            "clevel": 3,
+            "shuffle": "shuffle",
+        }
         self.assertEqual(expected_compressor, compressor)
 
     def test_get_compressor_none(self):
@@ -86,6 +134,21 @@ class ZeissCompressionTest(unittest.TestCase):
         job = ZeissCompressionJob(job_settings=job_settings)
         compressor = job._get_compressor()
         self.assertIsNone(compressor)
+
+    @patch("aind_hcr_data_transformation.utils.utils.sync_dir_to_s3")
+    @patch("pathlib.Path")
+    def test_no_s3_location(self, mock_path_cls, mock_sync):
+        instance = MagicMock()
+        instance.job_settings = MagicMock()
+        instance.job_settings.s3_location = None
+        instance.job_settings.input_source = "/local/data"
+
+        mock_derivatives_path = MagicMock()
+        mock_derivatives_path.exists.return_value = True
+        mock_path_cls().joinpath.return_value = mock_derivatives_path
+
+        instance._upload_derivatives_folder()
+        mock_sync.assert_not_called()
 
     @patch.object(ZeissCompressionJob, "run_job", return_value=None)
     def test_run_job(self, mock_run_job):

@@ -490,7 +490,7 @@ def czi_stack_zarr_writer(
     print(f"Time to write the dataset: {end_time - start_time}")
 
 
-def example():
+def example():  # pragma: no cover
     """
     Conversion example
     """

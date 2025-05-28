@@ -77,7 +77,7 @@ exclude_lines = [
     "^import .*",
     "pragma: no cover"
 ]
-fail_under = 40
+fail_under = 85
 
 [tool.isort]
 line_length = 79
