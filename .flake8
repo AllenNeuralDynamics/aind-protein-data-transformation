@@ -6,3 +6,4 @@ exclude =
     .venv,
     venv
 max-complexity = 10
+ignore = E203

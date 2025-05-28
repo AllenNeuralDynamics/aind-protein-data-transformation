@@ -2,13 +2,7 @@
 Functions to generate the OMEZarr 0.5 metadata
 """
 
-from typing import (
-    Dict,
-    List,
-    Optional,
-    Tuple,
-    cast,
-)
+from typing import Dict, List, Optional, Tuple, cast
 
 import numpy as np
 from ome_zarr.format import CurrentFormat

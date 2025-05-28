@@ -9,10 +9,7 @@ import asyncio
 import logging
 import multiprocessing
 import time
-from typing import (
-    List,
-    Optional,
-)
+from typing import List, Optional
 
 import czifile
 import numpy as np
@@ -500,9 +497,7 @@ def example():
     import time
     from pathlib import Path
 
-    czi_test_stack = Path(
-        "/Users/camilo.laiton/repositories/Z1/czi_to_zarr/data/tiles_test/SPIM/488_large.czi"
-    )
+    czi_test_stack = Path("/path/to/data/tiles_test/SPIM/488_large.czi")
 
     if czi_test_stack.exists():
         start_time = time.time()
@@ -511,7 +506,7 @@ def example():
         # for i, chn_name in enumerate(czi_file_reader.channel_names):
         czi_stack_zarr_writer(
             czi_path=str(czi_test_stack),
-            output_path=f"test_data/diSPIM/hcr_dt_test/{czi_test_stack.stem}.zarr",
+            output_path=f"{czi_test_stack.stem}.zarr",
             voxel_size=[1.0, 1.0, 1.0],
             shard_size=[512, 512, 512],
             chunk_size=[128, 128, 128],
