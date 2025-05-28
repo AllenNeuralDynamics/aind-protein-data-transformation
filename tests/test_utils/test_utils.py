@@ -127,6 +127,7 @@ class IoUtilitiesTest(unittest.TestCase):
 
 
 class TestReadSlicesCzi(unittest.TestCase):
+    """Unit tests for read_slices_czi function."""
 
     def setUp(self):
         """Set up test fixtures."""

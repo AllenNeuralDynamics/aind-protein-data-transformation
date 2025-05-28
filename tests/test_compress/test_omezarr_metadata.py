@@ -21,6 +21,7 @@ from aind_hcr_data_transformation.compress.omezarr_metadata import (
 
 
 class TestMetadataUtils(unittest.TestCase):
+    """Unit tests for the metadata utility functions."""
 
     def test_get_pyramid_metadata(self):
         """Test that the pyramid metadata is correctly constructed."""
@@ -139,8 +140,10 @@ class TestMetadataUtils(unittest.TestCase):
 
 
 class TestWriteOMENGFFMetadata(unittest.TestCase):
+    """Unit tests for the write_ome_ngff_metadata function."""
 
     def setUp(self):
+        """Set up basic parameters for the tests."""
         self.arr_shape = [1, 2, 8, 64, 64]
         self.chunk_size = [1, 1, 4, 32, 32]
         self.image_name = "test_img"
@@ -149,6 +152,7 @@ class TestWriteOMENGFFMetadata(unittest.TestCase):
         self.voxel_size = (1.0, 1.0, 1.0)
 
     def test_basic_metadata(self):
+        """Test that basic metadata is written correctly."""
         metadata = write_ome_ngff_metadata(
             arr_shape=self.arr_shape,
             chunk_size=self.chunk_size,
@@ -163,6 +167,7 @@ class TestWriteOMENGFFMetadata(unittest.TestCase):
         self.assertEqual(metadata["zarr_format"], 3)
 
     def test_channel_metadata(self):
+        """Test that channel metadata is written correctly."""
         metadata = write_ome_ngff_metadata(
             arr_shape=self.arr_shape,
             chunk_size=self.chunk_size,
@@ -182,6 +187,7 @@ class TestWriteOMENGFFMetadata(unittest.TestCase):
         self.assertEqual(channels[1]["window"]["end"], 240)
 
     def test_with_origin(self):
+        """Test that metadata with origin is written correctly."""
         origin = [0.0, 0.0, 0.0]
         metadata = write_ome_ngff_metadata(
             arr_shape=self.arr_shape,
@@ -197,6 +203,7 @@ class TestWriteOMENGFFMetadata(unittest.TestCase):
         self.assertEqual(len(datasets), self.n_lvls)
 
     def test_extra_metadata(self):
+        """Test that extra metadata can be added."""
         metadata = write_ome_ngff_metadata(
             arr_shape=self.arr_shape,
             chunk_size=self.chunk_size,

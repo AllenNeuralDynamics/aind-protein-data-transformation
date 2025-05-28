@@ -144,6 +144,10 @@ class ZeissCompressionTest(unittest.TestCase):
     @patch("aind_hcr_data_transformation.utils.utils.sync_dir_to_s3")
     @patch("pathlib.Path")
     def test_no_s3_location(self, mock_path_cls, mock_sync):
+        """
+        Tests _upload_derivatives_folder
+        when no S3 location is set
+        """
         instance = MagicMock()
         instance.job_settings = MagicMock()
         instance.job_settings.s3_location = None
