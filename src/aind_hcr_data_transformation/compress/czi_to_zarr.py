@@ -253,7 +253,6 @@ async def create_downsample_dataset(
             "recheck_cached_data": False,
         },
     }
-    print(source_w_down_spec)
 
     downsampled_dataset = await ts.open(spec=source_w_down_spec)
     source_dataset = downsampled_dataset.base
@@ -390,7 +389,7 @@ def czi_stack_zarr_writer(
         # Getting channel color
         channel_colors = None
 
-        print(
+        logger.info(
             f"Writing from {stack_name} to {output_path} bucket {bucket_name}"
         )
 
@@ -414,7 +413,7 @@ def czi_stack_zarr_writer(
         # Ideally we would use da.percentile(image_data, (0.1, 95))
         # However, it would take so much time and resources and it is
         # not used that much on neuroglancer
-        channel_startend = [(0.0, 550.0) for _ in range(dataset_shape[1])]
+        channel_startend = [(90.0, 1200.0) for _ in range(dataset_shape[1])]
 
         # Writing OME-NGFF metadata
         multiscale_zarr_json = write_ome_ngff_metadata(
@@ -487,7 +486,6 @@ def czi_stack_zarr_writer(
 
     end_time = time.time()
     logger.info(f"Time to write the dataset: {end_time - start_time}")
-    print(f"Time to write the dataset: {end_time - start_time}")
 
 
 def example():  # pragma: no cover
