@@ -54,7 +54,7 @@ class ZeissCompressionTest(unittest.TestCase):
                         {"type": "scale", "scale": [0.5, 0.4, 0.3]},
                     ]
                 }
-            ]
+            ],
         }
 
         mock_path = MagicMock(spec=Path)
@@ -75,16 +75,22 @@ class ZeissCompressionTest(unittest.TestCase):
                 {
                     "image_to_acquisition_transform": [
                         {"object_type": "Scale", "scale": [0.5, 0.4, 0.3]},
-                        {"object_type": "Translation", "translation": [1, 2, 3]}
+                        {
+                            "object_type": "Translation",
+                            "translation": [1, 2, 3],
+                        },
                     ]
                 },
                 {
                     "image_to_acquisition_transform": [
                         {"object_type": "Scale", "scale": [0.5, 0.4, 0.3]},
-                        {"object_type": "Translation", "translation": [1, 2, 3]}
+                        {
+                            "object_type": "Translation",
+                            "translation": [1, 2, 3],
+                        },
                     ]
                 },
-            ]
+            ],
         }
 
         mock_path = MagicMock(spec=Path)
@@ -115,7 +121,7 @@ class ZeissCompressionTest(unittest.TestCase):
                         {"type": "translation", "translation": [1, 2, 3]}
                     ]
                 }
-            ]
+            ],
         }
 
         mock_path = MagicMock(spec=Path)
