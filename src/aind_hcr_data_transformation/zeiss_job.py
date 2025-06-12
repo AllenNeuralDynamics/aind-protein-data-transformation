@@ -75,7 +75,7 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
 
         if version.parse(schema_version) >= version.parse("2.0.0"):
             return ZeissCompressionJob._get_voxel_resolution_schema_2(
-                acquisition_path
+                acquisition_config
             )
 
         # Grabbing a tile with metadata from acquisition - we assume all
@@ -100,7 +100,7 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
 
         # Grabbing a tile with metadata from acquisition - we assume all
         # dataset was acquired with the same resolution
-        image_to_acquisition_transform = acquisition_config["image"][0]["image_to_acquisition_transform"]
+        image_to_acquisition_transform = acquisition_config["images"][0]["image_to_acquisition_transform"]
         scale_transform = [
             x["scale"] for x in image_to_acquisition_transform if x["object_type"] == "Scale"
         ][0]

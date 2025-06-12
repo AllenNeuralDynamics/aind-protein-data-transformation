@@ -63,6 +63,36 @@ class ZeissCompressionTest(unittest.TestCase):
         result = ZeissCompressionJob._get_voxel_resolution(mock_path)
         self.assertEqual(result, [0.3, 0.4, 0.5])
 
+    @patch("aind_hcr_data_transformation.utils.utils.read_json_as_dict")
+    def test_valid_acquisition2_file(self, mock_read_json):
+        """
+        Tests that the voxel resolution is correctly
+        extracted from a valid acquisition.json file
+        """
+        mock_read_json.return_value = {
+            "schema_version": "2.0.0",
+            "images": [
+                {
+                    "image_to_acquisition_transform": [
+                        {"object_type": "Scale", "scale": [0.5, 0.4, 0.3]},
+                        {"object_type": "Translation", "translation": [1, 2, 3]}
+                    ]
+                },
+                {
+                    "image_to_acquisition_transform": [
+                        {"object_type": "Scale", "scale": [0.5, 0.4, 0.3]},
+                        {"object_type": "Translation", "translation": [1, 2, 3]}
+                    ]
+                },
+            ]
+        }
+
+        mock_path = MagicMock(spec=Path)
+        mock_path.is_file.return_value = True
+
+        result = ZeissCompressionJob._get_voxel_resolution(mock_path)
+        self.assertEqual(result, [0.3, 0.4, 0.5])
+
     def test_missing_file(self):
         """
         Tests that a FileNotFoundError is raised
