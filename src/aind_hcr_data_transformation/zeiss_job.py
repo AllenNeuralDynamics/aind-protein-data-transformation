@@ -9,6 +9,7 @@ from typing import Any, Dict, List
 from urllib.parse import urlparse
 
 from aind_data_transformation.core import GenericEtl, JobResponse, get_parser
+from packaging import version
 
 from aind_hcr_data_transformation.compress.czi_to_zarr import (
     czi_stack_zarr_writer,
@@ -69,6 +70,14 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
 
         acquisition_config = utils.read_json_as_dict(acquisition_path)
 
+        schema_version = acquisition_config.get("schema_version")
+        logging.info(f"Schema version: {schema_version}")
+
+        if version.parse(schema_version) >= version.parse("2.0.0"):
+            return ZeissCompressionJob._get_voxel_resolution_schema_2(
+                acquisition_config
+            )
+
         # Grabbing a tile with metadata from acquisition - we assume all
         # dataset was acquired with the same resolution
         tile_coord_transforms = acquisition_config["tiles"][0][
@@ -77,6 +86,30 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
 
         scale_transform = [
             x["scale"] for x in tile_coord_transforms if x["type"] == "scale"
+        ][0]
+
+        x = float(scale_transform[0])
+        y = float(scale_transform[1])
+        z = float(scale_transform[2])
+
+        return [z, y, x]
+
+    @staticmethod
+    def _get_voxel_resolution_schema_2(
+        acquisition_config: Dict,
+    ) -> List[float]:
+        """Get the voxel resolution from an acquisition.json file
+          for aind-data-schema==2.0.0"""
+
+        # Grabbing a tile with metadata from acquisition - we assume all
+        # dataset was acquired with the same resolution
+        image_to_acquisition_transform = acquisition_config["images"][0][
+            "image_to_acquisition_transform"
+        ]
+        scale_transform = [
+            x["scale"]
+            for x in image_to_acquisition_transform
+            if x["object_type"] == "Scale"
         ][0]
 
         x = float(scale_transform[0])
