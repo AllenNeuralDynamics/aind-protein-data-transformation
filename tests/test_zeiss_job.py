@@ -46,6 +46,7 @@ class ZeissCompressionTest(unittest.TestCase):
         extracted from a valid acquisition.json file
         """
         mock_read_json.return_value = {
+            "schema_version": "1.0.0",
             "tiles": [
                 {
                     "coordinate_transformations": [
@@ -77,6 +78,7 @@ class ZeissCompressionTest(unittest.TestCase):
     def test_missing_scale(self, mock_read_json):
         """Tests that an IndexError is raised if no scale is present"""
         mock_read_json.return_value = {
+            "schema_version": "1.0.0",
             "tiles": [
                 {
                     "coordinate_transformations": [

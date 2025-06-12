@@ -71,6 +71,7 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
         acquisition_config = utils.read_json_as_dict(acquisition_path)
 
         schema_version = acquisition_config.get("schema_version")
+        logging.info(f'Schema version: {schema_version}')
 
         if version.parse(schema_version) >= version.parse("2.0.0"):
             return ZeissCompressionJob._get_voxel_resolution_schema_2(
