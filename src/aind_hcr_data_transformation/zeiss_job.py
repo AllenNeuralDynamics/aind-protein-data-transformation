@@ -99,13 +99,22 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
         acquisition_config: Dict,
     ) -> List[float]:
         """Get the voxel resolution from an acquisition.json file
-          for aind-data-schema==2.0.0"""
+        for aind-data-schema==2.0.0"""
 
         # Grabbing a tile with metadata from acquisition - we assume all
         # dataset was acquired with the same resolution
-        image_to_acquisition_transform = acquisition_config["images"][0][
-            "image_to_acquisition_transform"
-        ]
+        try:
+            data_stream = acquisition_config.get("data_streams", [])[0]
+            configuration = data_stream.get("configurations", [])[0]
+            image = configuration.get("images", [])[0]
+            image_to_acquisition_transform = image[
+                "image_to_acquisition_transform"
+            ]
+        except (IndexError, AttributeError, KeyError) as e:
+            raise ValueError(
+                "acquisition_config structure is invalid or missing required fields"
+            ) from e
+
         scale_transform = [
             x["scale"]
             for x in image_to_acquisition_transform
