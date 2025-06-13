@@ -103,7 +103,10 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
 
         # Grabbing a tile with metadata from acquisition - we assume all
         # dataset was acquired with the same resolution
-        image_to_acquisition_transform = acquisition_config["data_streams"]["configurations"]["images"][0][
+        image_to_acquisition_transform = acquisition_config["data_streams"][
+            0][
+            "configurations"][0][
+            "images"][0][
             "image_to_acquisition_transform"
         ]
         scale_transform = [
