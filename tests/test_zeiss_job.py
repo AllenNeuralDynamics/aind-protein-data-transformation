@@ -71,26 +71,30 @@ class ZeissCompressionTest(unittest.TestCase):
         """
         mock_read_json.return_value = {
             "schema_version": "2.0.0",
-            "images": [
-                {
-                    "image_to_acquisition_transform": [
-                        {"object_type": "Scale", "scale": [0.5, 0.4, 0.3]},
+            "data_streams": {
+                "configurations": {
+                    "images": [
                         {
-                            "object_type": "Translation",
-                            "translation": [1, 2, 3],
+                            "image_to_acquisition_transform": [
+                                {"object_type": "Scale", "scale": [0.5, 0.4, 0.3]},
+                                {
+                                    "object_type": "Translation",
+                                    "translation": [1, 2, 3],
+                                },
+                            ]
                         },
-                    ]
-                },
-                {
-                    "image_to_acquisition_transform": [
-                        {"object_type": "Scale", "scale": [0.5, 0.4, 0.3]},
                         {
-                            "object_type": "Translation",
-                            "translation": [1, 2, 3],
-                        },
+                            "image_to_acquisition_transform": [
+                                {"object_type": "Scale", "scale": [0.5, 0.4, 0.3]},
+                                {
+                                    "object_type": "Translation",
+                                    "translation": [1, 2, 3],
+                                },
+                            ]
+                        }
                     ]
-                },
-            ],
+                }
+            },
         }
 
         mock_path = MagicMock(spec=Path)
