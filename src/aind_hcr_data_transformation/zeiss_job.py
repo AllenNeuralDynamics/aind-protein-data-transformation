@@ -112,7 +112,8 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
             ]
         except (IndexError, AttributeError, KeyError) as e:
             raise ValueError(
-                "acquisition_config structure is invalid or missing required fields"
+                "acquisition_config structure is invalid or missing " \
+                "required fields"
             ) from e
 
         scale_transform = [

@@ -125,7 +125,8 @@ class ZeissCompressionTest(unittest.TestCase):
             "acquisition_2.0.json does not exist in resources directory",
         )
         result = ZeissCompressionJob._get_voxel_resolution(acquisition_path)
-        # Update the expected value below to match the actual expected voxel size in your test file
+        # Update the expected value below to match the actual expected voxel
+        #  size in your test file
         expected_voxel_size = [1, 0.22936919442229586, 0.22936919442229586]
         self.assertEqual(result, expected_voxel_size)
 
