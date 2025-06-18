@@ -46,6 +46,7 @@ class ZeissCompressionTest(unittest.TestCase):
         extracted from a valid acquisition.json file
         """
         mock_read_json.return_value = {
+            "schema_version": "1.0.0",
             "tiles": [
                 {
                     "coordinate_transformations": [
@@ -53,7 +54,7 @@ class ZeissCompressionTest(unittest.TestCase):
                         {"type": "scale", "scale": [0.5, 0.4, 0.3]},
                     ]
                 }
-            ]
+            ],
         }
 
         mock_path = MagicMock(spec=Path)
@@ -61,6 +62,73 @@ class ZeissCompressionTest(unittest.TestCase):
 
         result = ZeissCompressionJob._get_voxel_resolution(mock_path)
         self.assertEqual(result, [0.3, 0.4, 0.5])
+
+    @patch("aind_hcr_data_transformation.utils.utils.read_json_as_dict")
+    def test_valid_acquisition2_file(self, mock_read_json):
+        """
+        Tests that the voxel resolution is correctly
+        extracted from a valid acquisition.json file
+        """
+        mock_read_json.return_value = {
+            "schema_version": "2.0.0",
+            "data_streams": [
+                {
+                    "configurations": [
+                        {
+                            "images": [
+                                {
+                                    "image_to_acquisition_transform": [
+                                        {
+                                            "object_type": "Scale",
+                                            "scale": [0.5, 0.4, 0.3],
+                                        },
+                                        {
+                                            "object_type": "Translation",
+                                            "translation": [1, 2, 3],
+                                        },
+                                    ]
+                                },
+                                {
+                                    "image_to_acquisition_transform": [
+                                        {
+                                            "object_type": "Scale",
+                                            "scale": [0.5, 0.4, 0.3],
+                                        },
+                                        {
+                                            "object_type": "Translation",
+                                            "translation": [1, 2, 3],
+                                        },
+                                    ]
+                                },
+                            ]
+                        }
+                    ]
+                },
+            ],
+        }
+
+        mock_path = MagicMock(spec=Path)
+        mock_path.is_file.return_value = True
+
+        result = ZeissCompressionJob._get_voxel_resolution(mock_path)
+        self.assertEqual(result, [0.3, 0.4, 0.5])
+
+    # test real acquisition file in tests/resources/acquisition_2.0.json
+    def test_real_acquisition_2_file(self):
+        """
+        Tests that the voxel resolution is correctly extracted
+        from a real acquisition_2.0.json file in the resources directory.
+        """
+        acquisition_path = RESOURCES_DIR / "acquisition_2.0.json"
+        self.assertTrue(
+            acquisition_path.is_file(),
+            "acquisition_2.0.json does not exist in resources directory",
+        )
+        result = ZeissCompressionJob._get_voxel_resolution(acquisition_path)
+        # Update the expected value below to match the actual expected voxel
+        #  size in your test file
+        expected_voxel_size = [1, 0.22936919442229586, 0.22936919442229586]
+        self.assertEqual(result, expected_voxel_size)
 
     def test_missing_file(self):
         """
@@ -77,13 +145,14 @@ class ZeissCompressionTest(unittest.TestCase):
     def test_missing_scale(self, mock_read_json):
         """Tests that an IndexError is raised if no scale is present"""
         mock_read_json.return_value = {
+            "schema_version": "1.0.0",
             "tiles": [
                 {
                     "coordinate_transformations": [
                         {"type": "translation", "translation": [1, 2, 3]}
                     ]
                 }
-            ]
+            ],
         }
 
         mock_path = MagicMock(spec=Path)
