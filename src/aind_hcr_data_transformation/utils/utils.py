@@ -9,12 +9,18 @@ import platform
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
+import logging
+import psutil
+import threading
+import time
+import matplotlib.pyplot as plt
 
 import boto3
 import numpy as np
 from czifile.czifile import create_output
 from natsort import natsorted
 from numpy.typing import ArrayLike
+
 
 from aind_hcr_data_transformation.models import PathLike
 
@@ -566,3 +572,84 @@ def write_json(
     else:
         with open(json_key, "w") as fp:
             json.dump(json_data, fp, indent=2)
+
+
+
+class MemoryLogger:
+    """
+    Logs memory and CPU usage of the current process.
+    Can be used as a context manager or via static methods.
+    """
+
+    def __init__(self, label="MemoryLogger", interval: Optional[float] = None, logger=None):
+        """
+        Args:
+            label (str): Label to include in log messages.
+            interval (float): If set, logs usage every `interval` seconds in a background thread.
+            logger (logging.Logger): Optional custom logger.
+        """
+        self.label = label
+        self.interval = interval
+        self.logger = logger or logging.getLogger(label)
+        self._stop_event = threading.Event()
+        self._thread = None
+        self.timestamps: List[float] = []
+        self.memory_mb: List[float] = []
+        self.cpu_percent: List[float] = []
+
+    @staticmethod
+    def log_memory_cpu(label="MemoryLogger", logger=None):
+        """Log current process memory and CPU usage once."""
+        logger = logger or logging.getLogger(label)
+        process = psutil.Process(os.getpid())
+        mem = process.memory_info()
+        cpu = process.cpu_percent(interval=0.1)
+        logger.info(
+            f"[{label}] RSS={mem.rss/1e6:.2f}MB, VMS={mem.vms/1e6:.2f}MB, CPU={cpu:.1f}%"
+        )
+        return time.time(), mem.rss/1e6, cpu
+
+    def _background_log(self):
+        while not self._stop_event.is_set():
+            t, mem, cpu = self.log_memory_cpu(self.label, self.logger)
+            self.timestamps.append(t)
+            self.memory_mb.append(mem)
+            self.cpu_percent.append(cpu)
+            time.sleep(self.interval)
+
+    def __enter__(self):
+        t, mem, cpu = self.log_memory_cpu(self.label, self.logger)
+        self.timestamps.append(t)
+        self.memory_mb.append(mem)
+        self.cpu_percent.append(cpu)
+        if self.interval:
+            self._thread = threading.Thread(target=self._background_log, daemon=True)
+            self._thread.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.interval:
+            self._stop_event.set()
+            self._thread.join()
+        t, mem, cpu = self.log_memory_cpu(self.label, self.logger)
+        self.timestamps.append(t)
+        self.memory_mb.append(mem)
+        self.cpu_percent.append(cpu)
+
+    def plot(self, save_path: str = "memory_cpu_profile.png"):
+        """Plot memory and CPU usage over time and save to file."""
+        if not self.timestamps:
+            raise RuntimeError("No data to plot. Use as context manager with interval.")
+        rel_time = [t - self.timestamps[0] for t in self.timestamps]
+        fig, ax1 = plt.subplots(figsize=(8, 4))
+        ax1.plot(rel_time, self.memory_mb, 'b-', label='Memory (MB)')
+        ax1.set_xlabel('Time (s)')
+        ax1.set_ylabel('Memory (MB)', color='b')
+        ax2 = ax1.twinx()
+        ax2.plot(rel_time, self.cpu_percent, 'r-', label='CPU (%)')
+        ax2.set_ylabel('CPU (%)', color='r')
+        plt.title(self.label)
+        fig.tight_layout()
+        plt.savefig(save_path)
+        plt.close(fig)
+        self.logger.info(f"Memory/CPU profile plot saved to {save_path}")
