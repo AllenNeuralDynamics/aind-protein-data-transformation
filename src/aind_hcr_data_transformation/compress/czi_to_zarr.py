@@ -482,7 +482,7 @@ def czi_stack_zarr_writer(
                         bucket_name=bucket_name,
                     )
                 )
-        memlog.plot(f"{output_path}/tensorstore_memory_usage.png")
+        memlog.plot(f"{output_path.parent.parent}/tensorstore_memory_usage.png")
 
     # Writes top level json
     write_json(
