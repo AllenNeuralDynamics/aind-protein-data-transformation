@@ -20,10 +20,10 @@ from aind_hcr_data_transformation.compress.omezarr_metadata import (
     write_ome_ngff_metadata,
 )
 from aind_hcr_data_transformation.utils.utils import (
+    MemoryLogger,
     czi_block_generator,
     pad_array_n_d,
     write_json,
-    MemoryLogger,
 )
 
 
@@ -443,11 +443,13 @@ def czi_stack_zarr_writer(
             zyx_resolution=voxel_size,
             compressor_kwargs=compressor_kwargs,
         )
-        MemoryLogger.log_memory_cpu("Before scheduling tensorstore tasks", logger)
+        MemoryLogger.log_memory_cpu(
+            "Before scheduling tensorstore tasks", logger
+        )
         tasks = []
         dataset = ts.open(spec).result()
 
-        # add memorylogger to this section to get overhead 
+        # add memorylogger to this section to get overhead
         # of writing the tasks
 
         # shard size must be TCZYX order
@@ -465,9 +467,13 @@ def czi_stack_zarr_writer(
             )
             write_task = dataset[region].write(pad_array_n_d(block))
             tasks.append(write_task)
-        MemoryLogger.log_memory_cpu("After scheduling tensorstore tasks", logger)
+        MemoryLogger.log_memory_cpu(
+            "After scheduling tensorstore tasks", logger
+        )
 
-        with MemoryLogger("Tensorstore write+downsample", interval=2, logger=logger) as memlog:
+        with MemoryLogger(
+            "Tensorstore write+downsample", interval=2, logger=logger
+        ) as memlog:
             # Waiting for the tensorstore tasks
             asyncio.run(write_tasks(tasks, batch_size=batch_size))
 
@@ -482,7 +488,9 @@ def czi_stack_zarr_writer(
                         bucket_name=bucket_name,
                     )
                 )
-        memlog.plot(f"{output_path.parent.parent}/tensorstore_memory_usage.png")
+        memlog.plot(
+            f"{output_path.parent.parent}/tensorstore_memory_usage.png"
+        )
 
     # Writes top level json
     write_json(
