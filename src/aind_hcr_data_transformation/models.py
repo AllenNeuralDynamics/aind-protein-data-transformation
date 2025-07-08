@@ -84,7 +84,7 @@ class ZeissJobSettings(BasicJobSettings):
         title="Downsample Mode",
     )
     tensorstore_batch_size: int = Field(
-        default=3,
+        default=1,
         description="Batch size to execute concurrent tensorstore tasks",
         title="Tensorstore batch size",
     )
