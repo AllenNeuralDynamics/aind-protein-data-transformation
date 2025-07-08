@@ -23,6 +23,7 @@ from aind_hcr_data_transformation.utils.utils import (
     czi_block_generator,
     pad_array_n_d,
     write_json,
+    MemoryLogger,
 )
 
 
@@ -442,9 +443,12 @@ def czi_stack_zarr_writer(
             zyx_resolution=voxel_size,
             compressor_kwargs=compressor_kwargs,
         )
-
+        MemoryLogger.log_memory_cpu("Before scheduling tensorstore tasks", logger)
         tasks = []
         dataset = ts.open(spec).result()
+
+        # add memorylogger to this section to get overhead 
+        # of writing the tasks
 
         # shard size must be TCZYX order
         for block, axis_area in czi_block_generator(
@@ -461,21 +465,24 @@ def czi_stack_zarr_writer(
             )
             write_task = dataset[region].write(pad_array_n_d(block))
             tasks.append(write_task)
+        MemoryLogger.log_memory_cpu("After scheduling tensorstore tasks", logger)
 
-        # Waiting for the tensorstore tasks
-        asyncio.run(write_tasks(tasks, batch_size=batch_size))
+        with MemoryLogger("Tensorstore write+downsample", interval=2, logger=logger) as memlog:
+            # Waiting for the tensorstore tasks
+            asyncio.run(write_tasks(tasks, batch_size=batch_size))
 
-        for level in range(n_lvls):
-            asyncio.run(
-                create_downsample_dataset(
-                    dataset_path=output_path,
-                    start_scale=level,
-                    downsample_factor=scale_factor,
-                    downsample_mode=downsample_mode,
-                    compressor_kwargs=compressor_kwargs,
-                    bucket_name=bucket_name,
+            for level in range(n_lvls):
+                asyncio.run(
+                    create_downsample_dataset(
+                        dataset_path=output_path,
+                        start_scale=level,
+                        downsample_factor=scale_factor,
+                        downsample_mode=downsample_mode,
+                        compressor_kwargs=compressor_kwargs,
+                        bucket_name=bucket_name,
+                    )
                 )
-            )
+        memlog.plot(f"{output_path}/tensorstore_memory_usage.png")
 
     # Writes top level json
     write_json(
