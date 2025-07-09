@@ -10,6 +10,7 @@ import logging
 import multiprocessing
 import time
 from typing import List, Optional
+from pathlib import Path
 
 import czifile
 import numpy as np
@@ -489,7 +490,7 @@ def czi_stack_zarr_writer(
                     )
                 )
         memlog.plot(
-            f"{output_path.parent.parent}/tensorstore_memory_usage.png"
+            f"{Path(output_path).parent.parent}/tensorstore_memory_usage.png"
         )
 
     # Writes top level json
