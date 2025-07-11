@@ -474,6 +474,9 @@ def czi_stack_zarr_writer(
 
         # Waiting for the tensorstore tasks
         asyncio.run(write_tasks(tasks, batch_size=batch_size))
+        MemoryLogger.log_memory_cpu(
+            "After writing tensorstore tasks", logger
+        )
 
         for level in range(n_lvls):
             asyncio.run(
