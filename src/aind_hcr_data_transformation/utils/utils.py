@@ -617,10 +617,11 @@ class MemoryLogger:
         """
         logger = logger or logging.getLogger(label)
         process = psutil.Process(os.getpid())
-        mem = process.memory_info()
+        mem = process.memory_full_info()
         cpu = process.cpu_percent(interval=0.1)
         logger.info(
             f"[{label}] RSS={mem.rss/1e6:.2f}MB, "
+            f"USS={mem.uss/1e6:.2f}MB, "
             f"VMS={mem.vms/1e6:.2f}MB, CPU={cpu:.1f}%"
         )
         return time.time(), mem.rss / 1e6, cpu
