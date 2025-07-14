@@ -467,16 +467,18 @@ def czi_stack_zarr_writer(
                 slice(0, dataset_shape[-1]),
             )
             write_task = dataset[region].write(pad_array_n_d(block))
-            tasks.append(write_task)
-        MemoryLogger.log_memory_cpu(
-            "After scheduling tensorstore tasks", logger
-        )
+            MemoryLogger.log_memory_cpu(
+            "Before Writing tensorstore tasks", logger
+            )
+            asyncio.run(write_tasks(write_task, batch_size=batch_size))
+            # tasks.append(write_task)
+            MemoryLogger.log_memory_cpu(
+            "After writing tensorstore tasks", logger
+            )
 
         # Waiting for the tensorstore tasks
-        asyncio.run(write_tasks(tasks, batch_size=batch_size))
-        MemoryLogger.log_memory_cpu(
-            "After writing tensorstore tasks", logger
-        )
+        # asyncio.run(write_tasks(tasks, batch_size=batch_size))
+       
 
         for level in range(n_lvls):
             asyncio.run(
