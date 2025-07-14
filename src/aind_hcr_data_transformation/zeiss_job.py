@@ -1,6 +1,7 @@
 """Module to handle zeiss data compression"""
 
 import logging
+import asyncio
 import os
 import sys
 from pathlib import Path
@@ -194,7 +195,7 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
             )
             logging.info(msg)
 
-            czi_stack_zarr_writer(
+            asyncio.run(czi_stack_zarr_writer(
                 czi_path=str(stack),
                 output_path=output_path,
                 voxel_size=voxel_size_zyx,
@@ -209,6 +210,7 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
                 compressor_kwargs=compressor,
                 bucket_name=bucket_name,
                 batch_size=self.job_settings.tensorstore_batch_size,
+            )
             )
 
     def _upload_derivatives_folder(self):
