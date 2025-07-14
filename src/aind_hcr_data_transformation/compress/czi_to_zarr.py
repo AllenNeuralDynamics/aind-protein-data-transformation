@@ -303,7 +303,7 @@ async def write_tasks(list_of_tasks: List, batch_size: int = 6):
         await asyncio.gather(*batch)
 
 
-def czi_stack_zarr_writer(
+async def czi_stack_zarr_writer(
     czi_path: str,
     output_path: str,
     voxel_size: List[float],
@@ -466,11 +466,12 @@ def czi_stack_zarr_writer(
                 slice(0, dataset_shape[-2]),
                 slice(0, dataset_shape[-1]),
             )
-            write_task = dataset[region].write(pad_array_n_d(block))
             MemoryLogger.log_memory_cpu(
             "Before Writing tensorstore tasks", logger
             )
-            asyncio.run(write_tasks(write_task, batch_size=batch_size))
+            await dataset[region].write(pad_array_n_d(block))
+
+            # asyncio.run(write_tasks(write_task, batch_size=batch_size))
             # tasks.append(write_task)
             MemoryLogger.log_memory_cpu(
             "After writing tensorstore tasks", logger
@@ -481,8 +482,7 @@ def czi_stack_zarr_writer(
        
 
         for level in range(n_lvls):
-            asyncio.run(
-                create_downsample_dataset(
+            await create_downsample_dataset(
                     dataset_path=output_path,
                     start_scale=level,
                     downsample_factor=scale_factor,
@@ -490,7 +490,6 @@ def czi_stack_zarr_writer(
                     compressor_kwargs=compressor_kwargs,
                     bucket_name=bucket_name,
                 )
-            )
 
 
     # Writes top level json
