@@ -82,6 +82,7 @@ def create_spec(
 
     if cpu_cnt is None:
         cpu_cnt = multiprocessing.cpu_count()
+    multiprocessing.set_start_method("spawn", force=True)
 
     zyx_resolution = [
         f"{r}um" if r is not None else None for r in zyx_resolution
@@ -218,6 +219,7 @@ async def create_downsample_dataset(
     if cpu_cnt is None:
         cpu_cnt = multiprocessing.cpu_count()
 
+    multiprocessing.set_start_method("spawn", force=True)
     kvstore_dict = {
         "driver": "file",
     }
@@ -379,6 +381,7 @@ def czi_stack_zarr_writer(
     """
     output_path = f"{output_path}/{stack_name}"
     start_time = time.time()
+    multiprocessing.set_start_method("spawn", force=True)
 
     with czifile.CziFile(str(czi_path)) as czi:
         dataset_shape = tuple(i for i in czi.shape if i != 1)
