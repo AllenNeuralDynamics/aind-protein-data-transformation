@@ -7,6 +7,7 @@ from pathlib import Path
 from time import time
 from typing import Any, Dict, List
 from urllib.parse import urlparse
+import multiprocessing
 
 from aind_data_transformation.core import GenericEtl, JobResponse, get_parser
 from packaging import version
@@ -273,4 +274,6 @@ def job_entrypoint(sys_args: list):
 
 
 if __name__ == "__main__":
+    multiprocessing.set_start_method("spawn", force=True)
     job_entrypoint(sys.argv[1:])
+    
