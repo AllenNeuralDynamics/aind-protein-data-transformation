@@ -26,6 +26,7 @@ from aind_hcr_data_transformation.utils.utils import (
     pad_array_n_d,
     write_json,
 )
+ts.experimental_update_verbose_logging("distributed,s3")
 
 
 def create_spec(
