@@ -23,11 +23,9 @@ from aind_hcr_data_transformation.utils import utils
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logging.getLogger("tensorstore").setLevel(logging.DEBUG)
-
 os.environ['GLOG_v'] = '2'  # Set GLOG verbosity level for tensorstore
-# to log debug information
 os.environ['TENSORSTORE_VERBOSE'] = '1'  # Set tensorstore verbosity level
-
+os.environ["TENSORSTORE_LOG_LEVEL"] = "debug"
 
 class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
     """Job to handle compressing and uploading Zeiss data."""
