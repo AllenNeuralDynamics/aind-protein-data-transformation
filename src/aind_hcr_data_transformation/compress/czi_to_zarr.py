@@ -221,7 +221,7 @@ async def create_downsample_dataset(
     kvstore_dict = {
         "driver": "file",
     }
-
+    
     if bucket_name is not None:
         kvstore_dict = {
             "driver": "s3",

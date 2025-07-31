@@ -3,11 +3,11 @@
 import logging
 import os
 import sys
+import multiprocessing
 from pathlib import Path
 from time import time
 from typing import Any, Dict, List
 from urllib.parse import urlparse
-import multiprocessing
 
 from aind_data_transformation.core import GenericEtl, JobResponse, get_parser
 from packaging import version
@@ -22,6 +22,9 @@ from aind_hcr_data_transformation.models import (
 from aind_hcr_data_transformation.utils import utils
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+os.environ['GLOG_v'] = '2'  # Set GLOG verbosity level for tensorstore
+# to log debug information
+os.environ['TENSORSTORE_VERBOSE'] = '1'  # Set tensorstore verbosity level
 
 
 class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
@@ -269,12 +272,12 @@ def job_entrypoint(sys_args: list):
     else:
         # Construct settings from env vars
         job_settings = ZeissJobSettings()
+    multiprocessing.set_start_method("spawn", force=True)
     job = ZeissCompressionJob(job_settings=job_settings)
     job_response = job.run_job()
     logging.info(job_response.model_dump_json())
 
 
 if __name__ == "__main__":
-    multiprocessing.set_start_method("spawn", force=True)
     job_entrypoint(sys.argv[1:])
     
