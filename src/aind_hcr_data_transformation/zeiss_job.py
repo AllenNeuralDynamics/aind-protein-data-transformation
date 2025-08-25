@@ -1,19 +1,17 @@
 """Module to handle zeiss data compression"""
 
 import logging
-import asyncio
 import os
 import sys
 from pathlib import Path
 from time import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
-import multiprocessing
 
 from aind_data_transformation.core import GenericEtl, JobResponse, get_parser
 from packaging import version
 
-from aind_hcr_data_transformation.compress.czi_to_zarr import (
+from aind_hcr_data_transformation.compress.czi_to_zarr_s3 import (
     czi_stack_zarr_writer,
 )
 from aind_hcr_data_transformation.models import (
@@ -130,7 +128,7 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
 
         return [z, y, x]
 
-    def _get_compressor(self) -> Dict:
+    def _get_compressor(self) -> Optional[Dict]:
         """
         Utility method to construct a compressor class.
         Returns
@@ -196,9 +194,9 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
             )
             logging.info(msg)
 
-            asyncio.run(czi_stack_zarr_writer(
+            czi_stack_zarr_writer(
                 czi_path=str(stack),
-                output_path=output_path,
+                output_path=str(output_path),
                 voxel_size=voxel_size_zyx,
                 shard_size=self.job_settings.shard_size,
                 chunk_size=self.job_settings.chunk_size,
@@ -207,16 +205,13 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
                 downsample_mode=self.job_settings.downsample_mode,
                 channel_name=stack_name,
                 stack_name=f"{stack_name}.ome.zarr",
-                logger=logging,
                 compressor_kwargs=compressor,
                 bucket_name=bucket_name,
-                batch_size=self.job_settings.tensorstore_batch_size,
-            )
             )
 
     def _upload_derivatives_folder(self):
         """
-        Uploads the derivatives folder inside of
+        Uploads the 'derivatives' folder inside of
         the SPIM folder in the cloud.
         """
         s3_derivatives_dir = f"{self.job_settings.s3_location}/derivatives"
@@ -256,7 +251,6 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
         )
 
 
-# TODO: Add this to core aind_data_transformation class
 def job_entrypoint(sys_args: list):
     """Main function"""
     parser = get_parser()
@@ -276,6 +270,4 @@ def job_entrypoint(sys_args: list):
 
 
 if __name__ == "__main__":
-    multiprocessing.set_start_method("spawn", force=True)
     job_entrypoint(sys.argv[1:])
-    
