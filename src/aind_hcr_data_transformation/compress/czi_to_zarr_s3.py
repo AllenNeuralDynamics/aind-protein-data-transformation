@@ -227,11 +227,15 @@ def create_downsample_dataset(
             transaction
         ).read().result()
     # downsampled_data = downsampled_dataset.read().result()
-    with ts.Transaction() as transaction:
-        down_dataset.with_transaction(transaction).write(
-            downsampled_data
-        ).result()
-
+    try:
+        with ts.Transaction() as transaction:
+            down_dataset.with_transaction(transaction).write(
+                downsampled_data
+            ).result()
+        logging.info(f"Completed downsample scale {new_scale} write")
+    except Exception as e:
+        logging.error(f"Failed to write downsample scale {new_scale}: {e}")
+        raise e
 
 def czi_stack_zarr_writer(
     czi_path: str,
