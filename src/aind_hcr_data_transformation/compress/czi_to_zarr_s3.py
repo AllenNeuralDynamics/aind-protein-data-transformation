@@ -222,11 +222,14 @@ def create_downsample_dataset(
     )
 
     down_dataset = ts.open(down_spec).result()
-    with ts.Transaction() as transaction:
-        downsampled_data = downsampled_dataset.with_transaction(
-            transaction
-        ).read().result()
-    # downsampled_data = downsampled_dataset.read().result()
+    try:
+        with ts.Transaction() as transaction:
+            downsampled_data = downsampled_dataset.with_transaction(
+                transaction
+            ).read().result()
+    except Exception as e:
+        logging.error(f"Failed to read downsampled data: {e}")
+        raise e
     try:
         with ts.Transaction() as transaction:
             down_dataset.with_transaction(transaction).write(
