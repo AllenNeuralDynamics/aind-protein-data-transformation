@@ -382,7 +382,7 @@ def czi_stack_zarr_writer(
                 slice(0, dataset_shape[-1]),
             )
             with ts.Transaction() as transaction: 
-                dataset.with_transaction(transaction).write(pad_array_n_d(block), region=region).result()
+                dataset[region].with_transaction(transaction).write(pad_array_n_d(block)).result()
             block_count += 1
             logging.info(f"Completed block {block_count} write for z-slices {axis_area}")
             # dataset[region].write(pad_array_n_d(block)).result()
