@@ -32,7 +32,7 @@ def create_spec(
     chunk_shape: list,
     zyx_resolution: list,
     compressor_kwargs: dict,
-   bucket_name: str = None,
+    bucket_name: str = None,
     scale: str = "0",
     aws_region: str = "us-west-2",
 ) -> dict:
@@ -222,7 +222,11 @@ def create_downsample_dataset(
     )
 
     down_dataset = ts.open(down_spec).result()
-    downsampled_data = downsampled_dataset.read().result()
+    with ts.Transaction() as transaction:
+        downsampled_data = downsampled_dataset.with_transaction(
+            transaction
+        ).read().result()
+    # downsampled_data = downsampled_dataset.read().result()
     with ts.Transaction() as transaction:
         down_dataset.with_transaction(transaction).write(
             downsampled_data
@@ -397,7 +401,7 @@ def czi_stack_zarr_writer(
                 logging.error(
                     f"Failed to write block {block_count} for z-slices {axis_area}: {e}"
                 )
-                continue
+                raise e
             # dataset[region].write(pad_array_n_d(block)).result()
 
         # Waiting for the tensorstore tasks
