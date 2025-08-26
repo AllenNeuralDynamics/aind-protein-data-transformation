@@ -222,7 +222,8 @@ def create_downsample_dataset(
 
     down_dataset = ts.open(down_spec).result()
     downsampled_data = downsampled_dataset.read().result()
-    down_dataset.write(downsampled_data).result()
+    with ts.Transaction() as transaction:
+        down_dataset.with_transaction(transaction).write(downsampled_data).result()
 
 
 def czi_stack_zarr_writer(
@@ -367,6 +368,7 @@ def czi_stack_zarr_writer(
         dataset = ts.open(spec).result()
 
         # shard size must be TCZYX order
+        block_count = 0
         for block, axis_area in czi_block_generator(
                 czi,
                 axis_jumps=shard_size[-3],
@@ -379,7 +381,11 @@ def czi_stack_zarr_writer(
                 slice(0, dataset_shape[-2]),
                 slice(0, dataset_shape[-1]),
             )
-            dataset[region].write(pad_array_n_d(block)).result()
+            with ts.Transaction() as transaction: 
+                dataset.with_transaction(transaction).write(pad_array_n_d(block), region=region).result()
+            block_count += 1
+            logging.info(f"Completed block {block_count} write for z-slices {axis_area}")
+            # dataset[region].write(pad_array_n_d(block)).result()
 
         # Waiting for the tensorstore tasks
         # asyncio.run(write_tasks(tasks, batch_size=batch_size))
