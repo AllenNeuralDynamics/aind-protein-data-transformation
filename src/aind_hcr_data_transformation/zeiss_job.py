@@ -1,13 +1,13 @@
 """Module to handle zeiss data compression"""
 
 import logging
+import multiprocessing
 import os
 import sys
 from pathlib import Path
 from time import time
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
-import multiprocessing
 
 from aind_data_transformation.core import GenericEtl, JobResponse, get_parser
 from packaging import version
