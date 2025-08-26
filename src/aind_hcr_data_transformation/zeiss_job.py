@@ -7,6 +7,7 @@ from pathlib import Path
 from time import time
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
+import multiprocessing
 
 from aind_data_transformation.core import GenericEtl, JobResponse, get_parser
 from packaging import version
@@ -253,6 +254,8 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
 
 def job_entrypoint(sys_args: list):
     """Main function"""
+    multiprocessing.set_start_method("spawn")
+
     parser = get_parser()
     cli_args = parser.parse_args(sys_args)
     if cli_args.job_settings is not None:

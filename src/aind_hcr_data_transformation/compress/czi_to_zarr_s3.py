@@ -81,6 +81,7 @@ def create_spec(
             "bucket": bucket_name,
             "aws_region": aws_region,
             "path": output_path,
+            "aws_credentials": {"type": "default"}
         },
         "path": str(scale),
         "recheck_cached_metadata": False,
@@ -381,10 +382,14 @@ def czi_stack_zarr_writer(
                 slice(0, dataset_shape[-2]),
                 slice(0, dataset_shape[-1]),
             )
-            with ts.Transaction() as transaction: 
-                dataset[region].with_transaction(transaction).write(pad_array_n_d(block)).result()
-            block_count += 1
-            logging.info(f"Completed block {block_count} write for z-slices {axis_area}")
+            try:
+                with ts.Transaction() as transaction: 
+                    dataset[region].with_transaction(transaction).write(pad_array_n_d(block)).result()
+                block_count += 1
+                logging.info(f"Completed block {block_count} write for z-slices {axis_area}")
+            except Exception as e:
+                logging.error(f"Failed to write block {block_count} for z-slices {axis_area}: {e}")
+                continue
             # dataset[region].write(pad_array_n_d(block)).result()
 
         # Waiting for the tensorstore tasks
