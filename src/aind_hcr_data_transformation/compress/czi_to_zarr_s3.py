@@ -224,9 +224,11 @@ def create_downsample_dataset(
     down_dataset = ts.open(down_spec).result()
     try:
         with ts.Transaction() as transaction:
-            downsampled_data = downsampled_dataset.with_transaction(
-                transaction
-            ).read().result()
+            downsampled_data = (
+                downsampled_dataset.with_transaction(transaction)
+                .read()
+                .result()
+            )
     except Exception as e:
         logging.error(f"Failed to read downsampled data: {e}")
         raise e
@@ -239,6 +241,7 @@ def create_downsample_dataset(
     except Exception as e:
         logging.error(f"Failed to write downsample scale {new_scale}: {e}")
         raise e
+
 
 def czi_stack_zarr_writer(
     czi_path: str,
@@ -381,10 +384,20 @@ def czi_stack_zarr_writer(
         )
         dataset = ts.open(spec).result()
 
-               # Align z block size to shard z extent for cleaner writes
-        shard_t, shard_c, shard_z, shard_y, shard_x = dataset.chunk_layout.write_chunk.shape
-        logging.info(f"Shard shape (t,c,z,y,x)={dataset.chunk_layout.write_chunk.shape}")
-        logging.info(f"Inner (codec) chunk shape (t,c,z,y,x)={dataset.chunk_layout.read_chunk.shape}")
+        # Align z block size to shard z extent for cleaner writes
+        (
+            shard_t,
+            shard_c,
+            shard_z,
+            shard_y,
+            shard_x,
+        ) = dataset.chunk_layout.write_chunk.shape
+        logging.info(
+            f"Shard shape (t,c,z,y,x)={dataset.chunk_layout.write_chunk.shape}"
+        )
+        logging.info(
+            f"Inner (codec) chunk shape (t,c,z,y,x)={dataset.chunk_layout.read_chunk.shape}"
+        )
 
         # Ensure our generator uses shard_z as the jump so each block spans shard z (unless image smaller).
         z_jump = shard_z
@@ -401,7 +414,7 @@ def czi_stack_zarr_writer(
             z_block = pad_array_n_d(z_block)
 
             z_start = axis_area.start
-            z_stop = axis_area.stop   # exclusive
+            z_stop = axis_area.stop  # exclusive
             # We expect (z_stop - z_start) <= shard_z
             local_z_span = z_stop - z_start
 
@@ -413,9 +426,9 @@ def czi_stack_zarr_writer(
 
                     # Region in dataset (t full, c full, full z span of this block, y segment, x segment)
                     region = (
-                        slice(0, dataset_shape[0]),            # t
-                        slice(0, dataset_shape[1]),            # c
-                        slice(z_start, z_stop),                # z (<= shard_z)
+                        slice(0, dataset_shape[0]),  # t
+                        slice(0, dataset_shape[1]),  # c
+                        slice(z_start, z_stop),  # z (<= shard_z)
                         slice(y0, y1),
                         slice(x0, x1),
                     )
@@ -426,7 +439,9 @@ def czi_stack_zarr_writer(
 
                     try:
                         with ts.Transaction() as txn:
-                            dataset[region].with_transaction(txn).write(sub).result()
+                            dataset[region].with_transaction(txn).write(
+                                sub
+                            ).result()
                         total_written_chunks += 1
                         logging.debug(
                             f"Committed chunk-like write z[{z_start}:{z_stop}) "
