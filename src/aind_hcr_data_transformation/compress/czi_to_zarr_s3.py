@@ -93,7 +93,7 @@ def create_spec(
             "fill_value": 0,
             "chunk_grid": {
                 "name": "regular",
-                "configuration": {"chunk_shape": shard_shape},
+                "configuration": {"chunk_shape": chunk_shape},
             },
             "chunk_key_encoding": {
                 "name": "default",
@@ -455,7 +455,6 @@ def czi_stack_zarr_writer(
                 compressor_kwargs=compressor_kwargs,
                 bucket_name=bucket_name,
             )
-            
     # Writes top level json
     write_json(
         bucket_name=bucket_name,
@@ -465,5 +464,4 @@ def czi_stack_zarr_writer(
 
     end_time = time.time()
     logging.info(f"Time to write the dataset: {end_time - start_time}")
-
-            ],
+    return
