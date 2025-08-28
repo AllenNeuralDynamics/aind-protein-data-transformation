@@ -389,7 +389,7 @@ def czi_stack_zarr_writer(
         # Ensure our generator uses shard_z as the jump so each block spans shard z (unless image smaller).
         z_jump = shard_z
 
-        total_written_shards = 0
+        total_written_chunks = 0
         start_loop_time = time.time()
 
         for z_block, axis_area in czi_block_generator(
@@ -427,11 +427,11 @@ def czi_stack_zarr_writer(
                     try:
                         with ts.Transaction() as txn:
                             dataset[region].with_transaction(txn).write(sub).result()
-                        total_written_shards += 1
+                        total_written_chunks += 1
                         logging.debug(
-                            f"Committed shard-like write z[{z_start}:{z_stop}) "
+                            f"Committed chunk-like write z[{z_start}:{z_stop}) "
                             f"y[{y0}:{y1}) x[{x0}:{x1}) "
-                            f"({total_written_shards} writes so far)"
+                            f"({total_written_chunks} writes so far)"
                         )
                     except Exception as e:
                         logging.error(
@@ -441,7 +441,7 @@ def czi_stack_zarr_writer(
                         raise
 
         logging.info(
-            f"Finished full-res aligned writes: {total_written_shards} shard-region writes "
+            f"Finished full-res aligned writes: {total_written_chunks} chunk-region writes "
             f"in {time.time()-start_loop_time:.2f}s"
         )
 
