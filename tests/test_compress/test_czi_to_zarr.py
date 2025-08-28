@@ -97,12 +97,20 @@ class TestCreateDownsampleDataset(unittest.TestCase):
 
     @patch("aind_hcr_data_transformation.compress.czi_to_zarr_s3.create_spec")
     @patch("aind_hcr_data_transformation.compress.czi_to_zarr_s3.ts.open")
-    def test_create_downsample_dataset_basic(self, mock_ts_open, mock_create_spec):
+    def test_create_downsample_dataset_basic(
+        self, mock_ts_open, mock_create_spec
+    ):
         """Test basic downsampling functionality."""
 
         mock_source_dataset = Mock()
         mock_source_dataset.dtype.name = "uint16"
-        mock_source_dataset.chunk_layout.write_chunk.shape = [1, 1, 50, 100, 150]
+        mock_source_dataset.chunk_layout.write_chunk.shape = [
+            1,
+            1,
+            50,
+            100,
+            150,
+        ]
         mock_source_dataset.chunk_layout.read_chunk.shape = [1, 1, 25, 50, 75]
 
         mock_downsampled_data = np.zeros((1, 1, 50, 100, 150), dtype=np.uint16)
@@ -111,8 +119,14 @@ class TestCreateDownsampleDataset(unittest.TestCase):
         mock_downsampled_dataset = Mock()
         mock_downsampled_dataset.base = mock_source_dataset
         mock_downsampled_dataset.shape = [1, 1, 50, 100, 150]
-        mock_downsampled_dataset.dimension_units = [None, None, "2.0um", "1.0um", "1.0um"]
-        
+        mock_downsampled_dataset.dimension_units = [
+            None,
+            None,
+            "2.0um",
+            "1.0um",
+            "1.0um",
+        ]
+
         # Mock result() method
         mock_read_result = Mock()
         mock_read_result.result.return_value = mock_downsampled_data
@@ -123,12 +137,14 @@ class TestCreateDownsampleDataset(unittest.TestCase):
         mock_write_result.result.return_value = None
         mock_transaction_dataset = Mock()
         mock_transaction_dataset.write.return_value = mock_write_result
-        mock_output_dataset.with_transaction.return_value = mock_transaction_dataset
+        mock_output_dataset.with_transaction.return_value = (
+            mock_transaction_dataset
+        )
 
         # Mock the ts.open results
         mock_open_result1 = Mock()
         mock_open_result1.result.return_value = mock_downsampled_dataset
-        mock_open_result2 = Mock() 
+        mock_open_result2 = Mock()
         mock_open_result2.result.return_value = mock_output_dataset
 
         mock_ts_open.side_effect = [mock_open_result1, mock_open_result2]
@@ -151,13 +167,23 @@ class TestCziStackZarrWriter(unittest.TestCase):
     """Test cases for the czi_stack_zarr_writer function."""
 
     @patch("aind_hcr_data_transformation.compress.czi_to_zarr_s3.write_json")
-    @patch("aind_hcr_data_transformation.compress.czi_to_zarr_s3.create_downsample_dataset")
+    @patch(
+        "aind_hcr_data_transformation.compress.czi_to_zarr_s3.create_downsample_dataset"
+    )
     @patch("aind_hcr_data_transformation.compress.czi_to_zarr_s3.ts.open")
-    @patch("aind_hcr_data_transformation.compress.czi_to_zarr_s3.czi_block_generator")
+    @patch(
+        "aind_hcr_data_transformation.compress.czi_to_zarr_s3.czi_block_generator"
+    )
     @patch("aind_hcr_data_transformation.compress.czi_to_zarr_s3.create_spec")
-    @patch("aind_hcr_data_transformation.compress.czi_to_zarr_s3._get_pyramid_metadata")
-    @patch("aind_hcr_data_transformation.compress.czi_to_zarr_s3.write_ome_ngff_metadata")
-    @patch("aind_hcr_data_transformation.compress.czi_to_zarr_s3.czifile.CziFile")
+    @patch(
+        "aind_hcr_data_transformation.compress.czi_to_zarr_s3._get_pyramid_metadata"
+    )
+    @patch(
+        "aind_hcr_data_transformation.compress.czi_to_zarr_s3.write_ome_ngff_metadata"
+    )
+    @patch(
+        "aind_hcr_data_transformation.compress.czi_to_zarr_s3.czifile.CziFile"
+    )
     def test_czi_stack_zarr_writer(
         self,
         mock_czifile,
@@ -186,8 +212,10 @@ class TestCziStackZarrWriter(unittest.TestCase):
         mock_write_result = Mock()
         mock_write_result.result.return_value = None
         mock_transaction_dataset.write.return_value = mock_write_result
-        mock_dataset.__getitem__.return_value.with_transaction.return_value = mock_transaction_dataset
-        
+        mock_dataset.__getitem__.return_value.with_transaction.return_value = (
+            mock_transaction_dataset
+        )
+
         mock_ts_result = MagicMock()
         mock_ts_result.result.return_value = mock_dataset
         mock_ts_open.return_value = mock_ts_result

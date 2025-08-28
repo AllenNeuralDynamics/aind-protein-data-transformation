@@ -93,7 +93,7 @@ def create_spec(
             "fill_value": 0,
             "chunk_grid": {
                 "name": "regular",
-                "configuration": {"chunk_shape": shard_shape},
+                "configuration": {"chunk_shape": chunk_shape},
             },
             "chunk_key_encoding": {
                 "name": "default",
@@ -224,9 +224,11 @@ def create_downsample_dataset(
     down_dataset = ts.open(down_spec).result()
     try:
         with ts.Transaction() as transaction:
-            downsampled_data = downsampled_dataset.with_transaction(
-                transaction
-            ).read().result()
+            downsampled_data = (
+                downsampled_dataset.with_transaction(transaction)
+                .read()
+                .result()
+            )
     except Exception as e:
         logging.error(f"Failed to read downsampled data: {e}")
         raise e
@@ -239,6 +241,7 @@ def create_downsample_dataset(
     except Exception as e:
         logging.error(f"Failed to write downsample scale {new_scale}: {e}")
         raise e
+
 
 def czi_stack_zarr_writer(
     czi_path: str,
@@ -381,39 +384,83 @@ def czi_stack_zarr_writer(
         )
         dataset = ts.open(spec).result()
 
-        # shard size must be TCZYX order
-        block_count = 0
-        for block, axis_area in czi_block_generator(
+        # Align z block size to shard z extent for cleaner writes
+        (
+            shard_t,
+            shard_c,
+            shard_z,
+            shard_y,
+            shard_x,
+        ) = dataset.chunk_layout.write_chunk.shape
+        logging.info(
+            f"Shard shape (t,c,z,y,x)={dataset.chunk_layout.write_chunk.shape}"
+        )
+        logging.info(
+            f"Inner (codec) chunk shape (t,c,z,y,x)={dataset.chunk_layout.read_chunk.shape}"
+        )
+
+        # Ensure our generator uses shard_z as the jump so each block spans shard z (unless image smaller).
+        z_jump = shard_z
+
+        total_written_chunks = 0
+        start_loop_time = time.time()
+
+        for z_block, axis_area in czi_block_generator(
             czi,
-            axis_jumps=shard_size[-3],
+            axis_jumps=z_jump,
             slice_axis="z",
         ):
-            region = (
-                slice(None),
-                slice(None),
-                axis_area,
-                slice(0, dataset_shape[-2]),
-                slice(0, dataset_shape[-1]),
-            )
-            try:
-                with ts.Transaction() as transaction:
-                    dataset[region].with_transaction(transaction).write(
-                        pad_array_n_d(block)
-                    ).result()
-                block_count += 1
-                logging.info(
-                    f"Completed block {block_count} write for z-slices {axis_area}"
-                )
-            except Exception as e:
-                logging.error(
-                    f"Failed to write block {block_count} for z-slices {axis_area}: {e}"
-                )
-                raise e
-            # dataset[region].write(pad_array_n_d(block)).result()
+            # Normalize to 5D (t,c,z,y,x)
+            z_block = pad_array_n_d(z_block)
 
-        # Waiting for the tensorstore tasks
-        # asyncio.run(write_tasks(tasks, batch_size=batch_size))
+            z_start = axis_area.start
+            z_stop = axis_area.stop  # exclusive
+            # We expect (z_stop - z_start) <= shard_z
+            local_z_span = z_stop - z_start
 
+            # Iterate over shard-aligned Y,X windows
+            for y0 in range(0, dataset_shape[-2], shard_y):
+                y1 = min(y0 + shard_y, dataset_shape[-2])
+                for x0 in range(0, dataset_shape[-1], shard_x):
+                    x1 = min(x0 + shard_x, dataset_shape[-1])
+
+                    # Region in dataset (t full, c full, full z span of this block, y segment, x segment)
+                    region = (
+                        slice(0, dataset_shape[0]),  # t
+                        slice(0, dataset_shape[1]),  # c
+                        slice(z_start, z_stop),  # z (<= shard_z)
+                        slice(y0, y1),
+                        slice(x0, x1),
+                    )
+
+                    # Extract matching subarray from z_block
+                    # z_block shape: (t,c,local_z_span,y,x)
+                    sub = z_block[..., 0:local_z_span, y0:y1, x0:x1]
+
+                    try:
+                        with ts.Transaction() as txn:
+                            dataset[region].with_transaction(txn).write(
+                                sub
+                            ).result()
+                        total_written_chunks += 1
+                        logging.debug(
+                            f"Committed chunk-like write z[{z_start}:{z_stop}) "
+                            f"y[{y0}:{y1}) x[{x0}:{x1}) "
+                            f"({total_written_chunks} writes so far)"
+                        )
+                    except Exception as e:
+                        logging.error(
+                            f"Failed writing region z[{z_start}:{z_stop}) "
+                            f"y[{y0}:{y1}) x[{x0}:{x1}) : {e}"
+                        )
+                        raise
+
+        logging.info(
+            f"Finished full-res aligned writes: {total_written_chunks} chunk-region writes "
+            f"in {time.time()-start_loop_time:.2f}s"
+        )
+
+        # Downsample pyramid creation
         for level in range(n_lvls):
             create_downsample_dataset(
                 dataset_path=output_path,
@@ -423,7 +470,6 @@ def czi_stack_zarr_writer(
                 compressor_kwargs=compressor_kwargs,
                 bucket_name=bucket_name,
             )
-
     # Writes top level json
     write_json(
         bucket_name=bucket_name,
@@ -433,3 +479,4 @@ def czi_stack_zarr_writer(
 
     end_time = time.time()
     logging.info(f"Time to write the dataset: {end_time - start_time}")
+    return
