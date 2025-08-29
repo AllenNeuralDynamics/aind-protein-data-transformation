@@ -200,7 +200,7 @@ def create_downsample_dataset(
     source_dataset = downsampled_dataset.base
     new_scale = start_scale + 1
 
-      downsampled_resolution = [
+    downsampled_resolution = [
         unit.multiplier if isinstance(unit, ts.Unit) else unit
         for unit in downsampled_dataset.dimension_units
     ]
@@ -222,7 +222,13 @@ def create_downsample_dataset(
 
     shape = downsampled_dataset.shape  # [t,c,z,y,x]
     # Use target dataset's write chunk (shard) shape for iteration
-    shard_t, shard_c, shard_z, shard_y, shard_x = down_dataset.chunk_layout.write_chunk.shape
+    (
+        shard_t,
+        shard_c,
+        shard_z,
+        shard_y,
+        shard_x,
+    ) = down_dataset.chunk_layout.write_chunk.shape
     logging.info(
         f"Downsample level {new_scale}: shape={shape} shard(write)={down_dataset.chunk_layout.write_chunk.shape} "
         f"inner(read)={down_dataset.chunk_layout.read_chunk.shape}"
@@ -259,9 +265,9 @@ def create_downsample_dataset(
                                     .result()
                                 )
                             with ts.Transaction() as txn:
-                                down_dataset[region].with_transaction(txn).write(
-                                    sub
-                                ).result()
+                                down_dataset[region].with_transaction(
+                                    txn
+                                ).write(sub).result()
                             total_regions += 1
                             if total_regions % 100 == 0:
                                 logging.debug(
@@ -279,6 +285,7 @@ def create_downsample_dataset(
         f"Completed downsample scale {new_scale} chunkwise write: {total_regions} regions "
         f"in {time.time()-start_time:.2f}s"
     )
+
 
 def czi_stack_zarr_writer(
     czi_path: str,
