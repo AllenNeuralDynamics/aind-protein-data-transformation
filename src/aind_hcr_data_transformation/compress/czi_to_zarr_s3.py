@@ -205,9 +205,7 @@ def create_downsample_dataset(
         for unit in downsampled_dataset.dimension_units
     ]
 
-    # Creates downsample spec
-    # Keeping chunk_size equal in all dimensions, however it might be
-    # suboptimal? We might want to have chunks of ~50-100 MB
+    # Spec for concrete target level
     down_spec = create_spec(
         output_path=dataset_path,
         data_shape=downsampled_dataset.shape,
@@ -220,27 +218,73 @@ def create_downsample_dataset(
         bucket_name=bucket_name,
         compressor_kwargs=compressor_kwargs,
     )
-
     down_dataset = ts.open(down_spec).result()
-    try:
-        with ts.Transaction() as transaction:
-            downsampled_data = (
-                downsampled_dataset.with_transaction(transaction)
-                .read()
-                .result()
-            )
-    except Exception as e:
-        logging.error(f"Failed to read downsampled data: {e}")
-        raise e
-    try:
-        with ts.Transaction() as transaction:
-            down_dataset.with_transaction(transaction).write(
-                downsampled_data
-            ).result()
-        logging.info(f"Completed downsample scale {new_scale} write")
-    except Exception as e:
-        logging.error(f"Failed to write downsample scale {new_scale}: {e}")
-        raise e
+
+    shape = downsampled_dataset.shape  # [t,c,z,y,x]
+    # Use target dataset's write chunk (shard) shape for iteration
+    (
+        shard_t,
+        shard_c,
+        shard_z,
+        shard_y,
+        shard_x,
+    ) = down_dataset.chunk_layout.write_chunk.shape
+    logging.info(
+        f"Downsample level {new_scale}: shape={shape} shard(write)={down_dataset.chunk_layout.write_chunk.shape} "
+        f"inner(read)={down_dataset.chunk_layout.read_chunk.shape}"
+    )
+
+    total_regions = 0
+    start_time = time.time()
+
+    for t0 in range(0, shape[0], shard_t):
+        t1 = min(t0 + shard_t, shape[0])
+        for c0 in range(0, shape[1], shard_c):
+            c1 = min(c0 + shard_c, shape[1])
+            for z0 in range(0, shape[2], shard_z):
+                z1 = min(z0 + shard_z, shape[2])
+                for y0 in range(0, shape[3], shard_y):
+                    y1 = min(y0 + shard_y, shape[3])
+                    for x0 in range(0, shape[4], shard_x):
+                        x1 = min(x0 + shard_x, shape[4])
+
+                        region = (
+                            slice(t0, t1),
+                            slice(c0, c1),
+                            slice(z0, z1),
+                            slice(y0, y1),
+                            slice(x0, x1),
+                        )
+                        try:
+                            # Single transaction per region for isolation
+                            with ts.Transaction() as txn:
+                                sub = (
+                                    downsampled_dataset[region]
+                                    .with_transaction(txn)
+                                    .read()
+                                    .result()
+                                )
+                            with ts.Transaction() as txn:
+                                down_dataset[region].with_transaction(
+                                    txn
+                                ).write(sub).result()
+                            total_regions += 1
+                            if total_regions % 100 == 0:
+                                logging.debug(
+                                    f"Level {new_scale}: wrote {total_regions} shard regions "
+                                    f"last region z[{z0}:{z1}) y[{y0}:{y1}) x[{x0}:{x1})"
+                                )
+                        except Exception as e:
+                            logging.error(
+                                f"Failed region t[{t0}:{t1}) c[{c0}:{c1}) z[{z0}:{z1}) "
+                                f"y[{y0}:{y1}) x[{x0}:{x1}) at level {new_scale}: {e}"
+                            )
+                            raise
+
+    logging.info(
+        f"Completed downsample scale {new_scale} chunkwise write: {total_regions} regions "
+        f"in {time.time()-start_time:.2f}s"
+    )
 
 
 def czi_stack_zarr_writer(
