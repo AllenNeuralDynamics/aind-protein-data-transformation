@@ -38,7 +38,7 @@ class ZeissJobSettings(BasicJobSettings):
     )
     partition_to_process: int = Field(
         ...,
-        description=("Which partition of stacks to process. "),
+        description="Which partition of stacks to process.",
     )
     compressor_name: CompressorName = Field(
         default=CompressorName.BLOSC,
@@ -87,4 +87,18 @@ class ZeissJobSettings(BasicJobSettings):
         default=1,
         description="Batch size to execute concurrent tensorstore tasks",
         title="Tensorstore batch size",
+    )
+    tiles_to_process: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "If provided, will only process tiles in this list. "
+            "If not provided, will process all tiles in directory."
+        )
+    )
+    start_tile: Literal["first", "last", "middle", "na"] = Field(
+        default="na",
+        description=(
+            "Flags that can be used to trigger certain subtasks based on "
+            "whether this is the first tile being processed or not."
+        )
     )

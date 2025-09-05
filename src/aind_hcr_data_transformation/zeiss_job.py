@@ -40,26 +40,6 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
             accumulated_list[a_index].append(list_item)
         return accumulated_list
 
-    def _get_partitioned_list_of_stack_paths(self) -> List[List[Path]]:
-        """
-        Scans through the input source and partitions a list of stack
-        paths that it finds there.
-        """
-        all_stack_paths = []
-        total_counter = 0
-        for p in (
-            Path(self.job_settings.input_source).joinpath("SPIM").glob("*.czi")
-        ):
-            if p.is_file():
-                total_counter += 1
-                all_stack_paths.append(p)
-
-        # Important to sort paths so every node computes the same list
-        all_stack_paths.sort(key=lambda x: str(x))
-        return self.partition_list(
-            all_stack_paths, self.job_settings.num_of_partitions
-        )
-
     @staticmethod
     def _get_voxel_resolution(acquisition_path: Path) -> List[float]:
         """Get the voxel resolution from an acquisition.json file."""
@@ -230,20 +210,38 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
             utils.sync_dir_to_s3(derivatives_path, s3_derivatives_dir)
             logging.info(f"{derivatives_path} uploaded to s3.")
 
+    def _get_list_of_stacks_to_process(self) -> List[Path]:
+        """Return a list of files to process."""
+        all_stack_paths = []
+        for p in (
+            Path(self.job_settings.input_source).joinpath("SPIM").glob("*.czi")
+        ):
+            if p.is_file():
+                all_stack_paths.append(p)
+        all_stack_paths.sort(key=lambda x: str(x))
+        if self.job_settings.tiles_to_process is not None:
+            return [
+                p
+                for p in all_stack_paths
+                if p.name in self.job_settings.tiles_to_process
+            ]
+        else:
+            return self.partition_list(
+                all_stack_paths, self.job_settings.num_of_partitions
+            )[self.job_settings.partition_to_process]
+
     def run_job(self):
         """Main entrypoint to run the job."""
         job_start_time = time()
 
-        # Reading data within the SPIM folder
-        partitioned_list = self._get_partitioned_list_of_stack_paths()
-
         # Upload derivatives folder
-        if self.job_settings.partition_to_process == 0:
+        if (
+            self.job_settings.partition_to_process == 0
+            or self.job_settings.start_tile == "first"
+        ):
             self._upload_derivatives_folder()
 
-        stacks_to_process = partitioned_list[
-            self.job_settings.partition_to_process
-        ]
+        stacks_to_process = self._get_list_of_stacks_to_process()
 
         self._write_stacks(stacks_to_process=stacks_to_process)
         total_job_duration = time() - job_start_time
