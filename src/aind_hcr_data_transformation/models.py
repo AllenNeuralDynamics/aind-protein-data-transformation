@@ -47,7 +47,7 @@ class ZeissJobSettings(BasicJobSettings):
     )
     # It will be safer if these kwargs fields were objects with known schemas
     compressor_kwargs: dict = Field(
-        default={"cname": "zstd", "clevel": 3, "shuffle": "shuffle"},
+        default={"cname": "zstd", "clevel": 3, "shuffle": 1, "blocksize": 0},
         description="Arguments to be used for the compressor.",
         title="Compressor Kwargs",
     )
