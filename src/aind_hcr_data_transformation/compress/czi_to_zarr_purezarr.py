@@ -1,7 +1,7 @@
-"""Pure zarr v3 + OME-NGFF 0.5 writer backend (simplified).
+"""Pure zarr v2 + OME-NGFF 0.5 writer backend (simplified).
 
 This version follows the SmartSPIM pattern for simplicity and maintainability.
-Always uses S3, zarr v3, Blosc compression, dask, and xarray_multiscale.
+Always uses S3, zarr v2, Blosc compression, dask, and xarray_multiscale.
 """
 
 import logging
@@ -17,7 +17,7 @@ import numpy as np
 import s3fs
 import xarray_multiscale
 import zarr
-from numcodecs import Blosc
+from zarr.codecs import BloscCodec
 from ome_zarr.io import parse_url
 
 from aind_hcr_data_transformation.compress.omezarr_metadata import (
@@ -177,13 +177,13 @@ def _write_pyramid_level(
     level_shape = level_data.shape
     level_chunks = tuple(min(c, s) for c, s in zip(chunk_size_5d, level_shape))
     
-    # Create zarr array for this level
-    arr_level = stack_group.create_dataset(
+    # Create zarr array for this level using Zarr v3 API
+    arr_level = stack_group.create_array(
         name=str(level_idx),
         shape=level_shape,
         chunks=level_chunks,
         dtype=base_dtype,
-        compressor=compressor,
+        compressors=[compressor],  # Use compressors parameter for v3
         overwrite=True,
     )
     
@@ -359,19 +359,19 @@ def czi_stack_zarr_writer(
         store = parsed_result.store
         root_group = safe_create_zarr_group(store=store)
         
-        # Create compressor
-        compressor = Blosc(**compressor_kwargs)
+        # Create compressor using Zarr v3 codec system
+        compressor = BloscCodec(**compressor_kwargs)
         
         # Create subgroup for this stack
         stack_group = root_group.create_group(name=stack_name.split('/')[-1], overwrite=True)
         
-        # Create level 0 array
-        arr0 = stack_group.create_dataset(
+        # Create level 0 array with Zarr v3 API
+        arr0 = stack_group.create_array(
             name="0",
             shape=dataset_shape,
             chunks=tuple(chunk_size_5d),
             dtype=base_dtype,
-            compressor=compressor,
+            compressors=[compressor],  # Use compressors parameter for v3
             overwrite=True,
         )
         
@@ -392,7 +392,7 @@ def czi_stack_zarr_writer(
             logging.info("[purezarr] Building pyramid with optimized streaming approach...")
             
             # Create dask array directly from zarr array (no memory loading!)
-            arr0_dask = from_array(arr0, chunks=tuple(chunk_size_5d))  # type: ignore
+            arr0_dask = from_array(arr0, chunks=chunk_size_5d)  # type: ignore
             
             # Ensure scale_factor is 5D
             scale_factor = _ensure_scale_factor_5D(scale_factor)
