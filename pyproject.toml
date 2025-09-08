@@ -4,9 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aind-hcr-data-transformation"
+version = "0.0.19"
 description = "Generated from aind-library-template"
 license = {text = "MIT"}
-requires-python = ">=3.9.2"
+requires-python = ">=3.11.0"
 authors = [
     {name = "Allen Institute for Neural Dynamics"}
 ]
@@ -14,17 +15,14 @@ classifiers = [
     "Programming Language :: Python :: 3"
 ]
 readme = "README.md"
-dynamic = ["version"]
 
 dependencies = [
-    'aind-data-transformation>=0.0.18',
+    'aind-hcr-data-transformation>=0.0.0',
     'zarr>=3.0.0',
     'natsort==8.4.0',
     'czifile==2019.7.2.1',
-    'tensorstore==0.1.72',
-    'ome-zarr==0.10.3',
-    'awscli==1.38.35',
-    'boto3==1.37.35', 
+    'awscli>=1.39.0',
+    'boto3>=1.37.35', 
     'matplotlib==3.8.2',
     's3fs>=2024.3.1'
 ]
@@ -43,9 +41,6 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.setuptools.dynamic]
-version = {attr = "aind_hcr_data_transformation.__version__"}
 
 [tool.black]
 line-length = 79
