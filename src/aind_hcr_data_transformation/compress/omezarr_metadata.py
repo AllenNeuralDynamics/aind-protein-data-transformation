@@ -402,12 +402,12 @@ def write_ome_ngff_metadata(
     n_lvls: int,
     scale_factors: tuple,
     voxel_size: tuple,
-    channel_names: List[str] = None,
-    channel_colors: List[str] = None,
-    channel_minmax: List[float] = None,
-    channel_startend: List[float] = None,
-    origin: list = None,
-    metadata: dict = None,
+    channel_names: Optional[List[str]] = None,
+    channel_colors: Optional[List[int]] = None,
+    channel_minmax: Optional[List[Tuple[float, float]]] = None,
+    channel_startend: Optional[List[Tuple[float, float]]] = None,
+    origin: Optional[List[float]] = None,
+    metadata: Optional[dict] = None,
 ):
     """
     Write OME-NGFF metadata to a Zarr group.
@@ -451,7 +451,7 @@ def write_ome_ngff_metadata(
 
     # Building the OMERO metadata
     omero_metadata = _build_ome(
-        arr_shape,
+        tuple(arr_shape),  # convert to tuple for type checking
         image_name,
         channel_names=channel_names,
         channel_colors=channel_colors,
@@ -462,11 +462,16 @@ def write_ome_ngff_metadata(
 
     if origin is not None:
         origin = _downscale_origin(
-            arr_shape, origin[-3:], voxel_size[-3:], scale_factors[-3:], n_lvls
+            arr_shape, origin[-3:], list(voxel_size[-3:]), list(scale_factors[-3:]), n_lvls
         )
 
     coordinate_transformations, chunk_opts = _compute_scales(
-        n_lvls, scale_factors, voxel_size, chunk_size, arr_shape, origin
+        n_lvls,
+        scale_factors,
+        voxel_size,
+        cast(Tuple[int, int, int, int, int], tuple(chunk_size)),
+        cast(Tuple[int, int, int, int, int], tuple(arr_shape)),
+        origin,
     )
     fmt.validate_coordinate_transformations(
         len(arr_shape), n_lvls, coordinate_transformations
@@ -477,6 +482,9 @@ def write_ome_ngff_metadata(
         for dataset, transform in zip(datasets, coordinate_transformations):
             dataset["coordinateTransformations"] = transform
 
+    # Ensure attributes key holds a dict before assignment
+    if not isinstance(group.get("attributes"), dict):  # defensive
+        group["attributes"] = {}
     group["attributes"]["ome"] = {"version": "0.5"}
 
     # Writing the multiscale metadata

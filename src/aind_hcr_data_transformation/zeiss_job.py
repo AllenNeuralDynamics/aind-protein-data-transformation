@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 from aind_data_transformation.core import GenericEtl, JobResponse, get_parser
 from packaging import version
 
-from aind_hcr_data_transformation.compress.czi_to_zarr_s3 import (
+from aind_hcr_data_transformation.compress.czi_to_zarr_purezarr import (
     czi_stack_zarr_writer,
 )
 from aind_hcr_data_transformation.models import (
