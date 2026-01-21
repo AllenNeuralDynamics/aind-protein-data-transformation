@@ -9,8 +9,8 @@ import asyncio
 import logging
 import multiprocessing
 import time
-from typing import List, Optional
 from pathlib import Path
+from typing import List, Optional
 
 import czifile
 import numpy as np
@@ -311,7 +311,7 @@ async def czi_stack_zarr_writer(
     chunk_size: List[int],
     scale_factor: List[int],
     n_lvls: int,
-    channel_name: str,
+    channel_names: List[str],
     logger: logging.Logger,
     stack_name: str,
     compressor_kwargs: dict,
@@ -377,10 +377,10 @@ async def czi_stack_zarr_writer(
         Bucket name to upload the dataset.
         If it is None, then it will be stored locally.
     """
-    output_path = f"{output_path}/{stack_name}"
     start_time = time.time()
 
     with czifile.CziFile(str(czi_path)) as czi:
+
         dataset_shape = tuple(i for i in czi.shape if i != 1)
         extra_axes = (1,) * (5 - len(dataset_shape))
         dataset_shape = extra_axes + dataset_shape
@@ -388,102 +388,114 @@ async def czi_stack_zarr_writer(
         shard_size = ([1] * (5 - len(shard_size))) + shard_size
         chunk_size = ([1] * (5 - len(chunk_size))) + chunk_size
 
-        # Getting channel color
-        channel_colors = None
+        # Processing each channel of the czi independently
+        for channel_idx in range(dataset_shape[1]):
 
-        logger.info(
-            f"Writing from {stack_name} to {output_path} bucket {bucket_name}"
-        )
-
-        if np.issubdtype(czi.dtype, np.integer):
-            np_info_func = np.iinfo
-
-        else:
-            # Floating point
-            np_info_func = np.finfo
-
-        # Getting min max metadata for the dtype
-        channel_minmax = [
-            (
-                np_info_func(czi.dtype).min,
-                np_info_func(czi.dtype).max,
+            output_path_channel = (
+                f"{output_path}/{channel_names[channel_idx]}.zarr"
             )
-            for _ in range(dataset_shape[1])
-        ]
 
-        # Setting values for CZI
-        # Ideally we would use da.percentile(image_data, (0.1, 95))
-        # However, it would take so much time and resources and it is
-        # not used that much on neuroglancer
-        channel_startend = [(90.0, 1200.0) for _ in range(dataset_shape[1])]
+            # Getting channel color
+            channel_colors = None
 
-        # Writing OME-NGFF metadata
-        multiscale_zarr_json = write_ome_ngff_metadata(
-            arr_shape=dataset_shape,
-            image_name=stack_name,
-            n_lvls=n_lvls,
-            scale_factors=scale_factor,
-            voxel_size=voxel_size,
-            channel_names=[channel_name],
-            channel_colors=channel_colors,
-            channel_minmax=channel_minmax,
-            channel_startend=channel_startend,
-            metadata=_get_pyramid_metadata(),
-            chunk_size=chunk_size,
-            origin=[0, 0, 0],  # TODO get nominal coordinates into metadata
-        )
+            logger.info(
+                f"Writing from {stack_name} C={channel_idx} to {output_path_channel} bucket {bucket_name}"
+            )
 
-        # Full resolution spec
-        spec = create_spec(
-            output_path=output_path,
-            bucket_name=bucket_name,
-            data_shape=dataset_shape,
-            data_dtype=czi.dtype.name,
-            shard_shape=shard_size,
-            chunk_shape=chunk_size,
-            zyx_resolution=voxel_size,
-            compressor_kwargs=compressor_kwargs,
-        )
-        MemoryLogger.log_memory_cpu(
-            "Before scheduling tensorstore tasks", logger
-        )
-        tasks = []
-        dataset = ts.open(spec).result()
+            if np.issubdtype(czi.dtype, np.integer):
+                np_info_func = np.iinfo
 
-        # add memorylogger to this section to get overhead
-        # of writing the tasks
+            else:
+                # Floating point
+                np_info_func = np.finfo
 
-        # shard size must be TCZYX order
-        for block, axis_area in czi_block_generator(
-            czi,
-            axis_jumps=shard_size[-3],
-            slice_axis="z",
-        ):
-            region = (
-                slice(None),
-                slice(None),
-                axis_area,
-                slice(0, dataset_shape[-2]),
-                slice(0, dataset_shape[-1]),
+            # Getting min max metadata for the dtype
+            channel_minmax = [
+                (
+                    np_info_func(czi.dtype).min,
+                    np_info_func(czi.dtype).max,
+                )
+                for _ in range(dataset_shape[1])
+            ]
+
+            # Setting values for CZI
+            # Ideally we would use da.percentile(image_data, (0.1, 95))
+            # However, it would take so much time and resources and it is
+            # not used that much on neuroglancer
+            channel_startend = [
+                (90.0, 1200.0) for _ in range(dataset_shape[1])
+            ]
+
+            new_dataset_shape = list(dataset_shape)
+            new_dataset_shape[1] = 1  # single channel being written
+
+            # Writing OME-NGFF metadata
+            multiscale_zarr_json = write_ome_ngff_metadata(
+                arr_shape=tuple(new_dataset_shape),
+                image_name=stack_name,
+                n_lvls=n_lvls,
+                scale_factors=scale_factor,
+                voxel_size=voxel_size,
+                channel_names=[channel_names[channel_idx]],
+                channel_colors=channel_colors,
+                channel_minmax=channel_minmax,
+                channel_startend=channel_startend,
+                metadata=_get_pyramid_metadata(),
+                chunk_size=chunk_size,
+                origin=[0, 0, 0],  # TODO get nominal coordinates into metadata
+            )
+
+            # Full resolution spec
+            spec = create_spec(
+                output_path=output_path_channel,
+                bucket_name=bucket_name,
+                data_shape=tuple(new_dataset_shape),
+                data_dtype=czi.dtype.name,
+                shard_shape=shard_size,
+                chunk_shape=chunk_size,
+                zyx_resolution=voxel_size,
+                compressor_kwargs=compressor_kwargs,
             )
             MemoryLogger.log_memory_cpu(
-            "Before Writing tensorstore tasks", logger
+                "Before scheduling tensorstore tasks", logger
             )
-            await dataset[region].write(pad_array_n_d(block))
+            tasks = []
+            dataset = ts.open(spec).result()
 
-            # asyncio.run(write_tasks(write_task, batch_size=batch_size))
-            # tasks.append(write_task)
-            MemoryLogger.log_memory_cpu(
-            "After writing tensorstore tasks", logger
-            )
+            # add memorylogger to this section to get overhead
+            # of writing the tasks
 
-        # Waiting for the tensorstore tasks
-        # asyncio.run(write_tasks(tasks, batch_size=batch_size))
-       
+            # shard size must be TCZYX order
+            for block, axis_area in czi_block_generator(
+                czi,
+                channel_idx=channel_idx,
+                axis_jumps=shard_size[-3],
+                slice_axis="z",
+            ):
+                region = (
+                    slice(None),
+                    slice(None),
+                    axis_area,
+                    slice(0, dataset_shape[-2]),
+                    slice(0, dataset_shape[-1]),
+                )
+                MemoryLogger.log_memory_cpu(
+                    "Before Writing tensorstore tasks", logger
+                )
+                await dataset[region].write(pad_array_n_d(block))
 
-        for level in range(n_lvls):
-            await create_downsample_dataset(
-                    dataset_path=output_path,
+                # asyncio.run(write_tasks(write_task, batch_size=batch_size))
+                # tasks.append(write_task)
+                MemoryLogger.log_memory_cpu(
+                    "After writing tensorstore tasks", logger
+                )
+
+            # Waiting for the tensorstore tasks
+            # asyncio.run(write_tasks(tasks, batch_size=batch_size))
+
+            for level in range(n_lvls):
+                await create_downsample_dataset(
+                    dataset_path=output_path_channel,
                     start_scale=level,
                     downsample_factor=scale_factor,
                     downsample_mode=downsample_mode,
@@ -491,13 +503,12 @@ async def czi_stack_zarr_writer(
                     bucket_name=bucket_name,
                 )
 
-
-    # Writes top level json
-    write_json(
-        bucket_name=bucket_name,
-        output_path=output_path,
-        json_data=multiscale_zarr_json,
-    )
+            # Writes top level json
+            write_json(
+                bucket_name=bucket_name,
+                output_path=output_path_channel,
+                json_data=multiscale_zarr_json,
+            )
 
     end_time = time.time()
     logger.info(f"Time to write the dataset: {end_time - start_time}")
@@ -507,34 +518,82 @@ def example():  # pragma: no cover
     """
     Conversion example
     """
+    import os
     import time
+    import xml.etree.ElementTree as ET
     from pathlib import Path
 
-    czi_test_stack = Path("/path/to/data/tiles_test/SPIM/488_large.czi")
+    BASE_PATH = Path(
+        os.path.abspath(
+            "/allen/aind/scratch/YuzhenLiu/2025-08-04_16X/upload_NB2_Z2.5_STRM_edge/HCR_803721_2026-01-20_00-00-00/SPIM"
+        )
+    )
+    image_name = "Tile_X_0000_Y_0000_Z_0000_ch_488.czi"
+
+    czi_test_stack = Path(f"{BASE_PATH}/{image_name}")
+
+    with czifile.CziFile(str(czi_test_stack)) as czi:
+        dataset_shape = tuple(i for i in czi.shape if i != 1)
+        extra_axes = (1,) * (5 - len(dataset_shape))
+        dataset_shape = extra_axes + dataset_shape
+
+        metadata = czi.metadata()
+        print(f"CZI shape: {dataset_shape}")
+
+        # Parse XML
+        root = ET.fromstring(metadata)
+
+        # Find scaling info (units are meters)
+        scaling = root.find(".//Scaling")
+
+        scale_x = float(scaling.find(".//Distance[@Id='X']/Value").text)
+        scale_y = float(scaling.find(".//Distance[@Id='Y']/Value").text)
+        scale_z = scaling.find(".//Distance[@Id='Z']/Value")
+
+        scale_z = float(scale_z.text) if scale_z is not None else None
+
+        print(f"Resolution X: {scale_x} meters/pixel")
+        print(f"Resolution Y: {scale_y} meters/pixel")
+        print(f"Resolution Z: {scale_z} meters/pixel")
+
+    # convert meters to microns
+    scale_x_um = scale_x * 1e6
+    scale_y_um = scale_y * 1e6
+    scale_z_um = scale_z * 1e6 if scale_z is not None else None
+
+    print(f"Resolution X: {scale_x_um:.4f} µm/pixel")
+    print(f"Resolution Y: {scale_y_um:.4f} µm/pixel")
+    print(
+        f"Resolution Z: {scale_z_um:.4f} µm/pixel"
+        if scale_z_um
+        else "Resolution Z: N/A"
+    )
 
     if czi_test_stack.exists():
         start_time = time.time()
 
         # for channel_name in
         # for i, chn_name in enumerate(czi_file_reader.channel_names):
-        czi_stack_zarr_writer(
-            czi_path=str(czi_test_stack),
-            output_path=f"{czi_test_stack.stem}.zarr",
-            voxel_size=[1.0, 1.0, 1.0],
-            shard_size=[512, 512, 512],
-            chunk_size=[128, 128, 128],
-            scale_factor=[2, 2, 2],
-            n_lvls=4,
-            channel_name=czi_test_stack.stem,
-            logger=logging.Logger(name="test"),
-            stack_name="test_conversion_czi_package.zarr",
-            compressor_kwargs={
-                "cname": "zstd",
-                "clevel": 3,
-                "shuffle": "shuffle",
-            },
-            downsample_mode="mean",
-            bucket_name="aind-msma-morphology-data",
+        asyncio.run(
+            czi_stack_zarr_writer(
+                czi_path=str(czi_test_stack),
+                output_path=czi_test_stack.stem,
+                voxel_size=[scale_z_um, scale_y_um, scale_x_um],
+                shard_size=[512, 512, 512],
+                chunk_size=[128, 128, 128],
+                scale_factor=[2, 2, 2],
+                n_lvls=4,
+                channel_names=["488", "638"],
+                logger=logging.Logger(name="test"),
+                stack_name="test_conversion_czi_package.zarr",
+                compressor_kwargs={
+                    "cname": "zstd",
+                    "clevel": 3,
+                    "shuffle": "shuffle",
+                },
+                downsample_mode="mean",
+                bucket_name=None,  # "aind-msma-morphology-data",
+            )
         )
         end_time = time.time()
         print(f"Conversion time: {end_time - start_time} s")

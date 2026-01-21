@@ -241,6 +241,7 @@ def parallel_reader(
     nominal_start: np.ndarray,
     start_slice: int,
     ax_index: int,
+    channel_ax_index: int,
     resize: bool,
     order: int,
 ):
@@ -281,6 +282,8 @@ def parallel_reader(
     index[ax_index] = slice(
         index[ax_index].start - start_slice, index[ax_index].stop - start_slice
     )
+    # Ensure channel axis writes into the single-channel output at position 0
+    index[channel_ax_index] = slice(0, tile.shape[channel_ax_index])
 
     try:
         out[tuple(index)] = tile
@@ -352,11 +355,12 @@ def read_slices_czi(
     )
     nominal_start = np.array(czi_stream.start)
 
-    len_dir = len(subblock_directory)
-
-    validate_slices(start_slice, end_slice, len_dir)
-
+    # Validate requested slice range against the axis length (not directory length)
     ax_index = axes.index(slice_axis.lower())
+
+    axis_len = shape[ax_index]
+    validate_slices(start_slice, end_slice, axis_len)
+
     new_shape = list(shape)
     new_shape[ax_index] = end_slice - start_slice
     new_shape[axes.index("c")] = 1  # Assume 1 channel per CZI
@@ -366,7 +370,23 @@ def read_slices_czi(
         multiprocessing.cpu_count() // 2, end_slice - start_slice
     )
 
-    selected_entries = subblock_directory[start_slice:end_slice]
+    # Select subblocks that fall within the requested slice range based on
+    # their position along the chosen axis. Using list indices here can
+    # misalign with actual Z positions when multiple tiles exist per slice.
+    selected_entries = [
+        entry
+        for entry in subblock_directory
+        if start_slice
+        <= (np.array(entry.start)[ax_index] - nominal_start[ax_index])
+        < end_slice
+    ]
+
+    if not selected_entries:
+        raise ValueError(
+            f"No CZI subblocks selected for axis index {ax_index} "
+            f"in range [{start_slice}, {end_slice}). This can indicate "
+            f"a mismatch between slice indices and subblock positions."
+        )
 
     if max_workers > 1 and end_slice - start_slice > 1:
         czi_stream._fh.lock = True
@@ -378,6 +398,7 @@ def read_slices_czi(
                     nominal_start,
                     start_slice,
                     ax_index,
+                    axes.index("c"),
                     resize,
                     order,
                 ),
@@ -392,6 +413,7 @@ def read_slices_czi(
                 nominal_start,
                 start_slice,
                 ax_index,
+                axes.index("c"),
                 resize,
                 order,
             )
@@ -468,6 +490,7 @@ def get_axis_index(czi_shape: List[int], czi_axis: int, axis_name: str):
 
 def czi_block_generator(
     czi_decriptor,
+    channel_idx: int,
     axis_jumps: Optional[int] = 128,
     slice_axis: Optional[str] = "z",
 ):
@@ -503,11 +526,44 @@ def czi_block_generator(
         czi_decriptor.shape, czi_decriptor.axes, slice_axis
     )
 
-    subblock_directory = czi_decriptor.filtered_subblock_directory
+    channel_axis_index, channel_axis_shape = get_axis_index(
+        czi_decriptor.shape, czi_decriptor.axes, "C"
+    )
 
+    # Determine actual channel identifiers present in subblocks.
+    subblock_directory = czi_decriptor.filtered_subblock_directory
+    channel_values = sorted(
+        {sb.start[channel_axis_index] for sb in subblock_directory}
+    )
+    print("Available channel identifiers in subblocks:", channel_values)
+
+    if channel_idx >= len(channel_values):
+        raise ValueError(
+            f"Channel index {channel_idx} out of bounds for available channels "
+            f"{channel_values}"
+        )
+
+    # Map requested channel_idx to the real channel value in subblocks (handles 1-based or sparse IDs).
+    requested_channel_value = channel_values[channel_idx]
+    print(requested_channel_value)
+
+    subblock_directory_per_channel = [
+        sb
+        for sb in subblock_directory
+        if sb.start[channel_axis_index] == requested_channel_value
+    ]
     # Sorting indices so planes are ordered
     ordered_subblock_directory = natsorted(
-        subblock_directory, key=lambda sb: sb.start[axis_index]
+        subblock_directory_per_channel, key=lambda sb: sb.start[axis_index]
+    )
+    print(
+        "Number of subblocks for channel value",
+        requested_channel_value,
+        ":",
+        len(ordered_subblock_directory),
+    )
+    print(
+        "Subblocks channel : ", [x.start for x in ordered_subblock_directory]
     )
 
     jumps = generate_jumps(axis_shape, axis_jumps)

@@ -1,14 +1,14 @@
 """Module to handle zeiss data compression"""
 
-import logging
 import asyncio
+import logging
+import multiprocessing
 import os
 import sys
 from pathlib import Path
 from time import time
 from typing import Any, Dict, List
 from urllib.parse import urlparse
-import multiprocessing
 
 from aind_data_transformation.core import GenericEtl, JobResponse, get_parser
 from packaging import version
@@ -196,22 +196,23 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
             )
             logging.info(msg)
 
-            asyncio.run(czi_stack_zarr_writer(
-                czi_path=str(stack),
-                output_path=output_path,
-                voxel_size=voxel_size_zyx,
-                shard_size=self.job_settings.shard_size,
-                chunk_size=self.job_settings.chunk_size,
-                scale_factor=self.job_settings.scale_factor,
-                n_lvls=self.job_settings.downsample_levels,
-                downsample_mode=self.job_settings.downsample_mode,
-                channel_name=stack_name,
-                stack_name=f"{stack_name}.ome.zarr",
-                logger=logging,
-                compressor_kwargs=compressor,
-                bucket_name=bucket_name,
-                batch_size=self.job_settings.tensorstore_batch_size,
-            )
+            asyncio.run(
+                czi_stack_zarr_writer(
+                    czi_path=str(stack),
+                    output_path=output_path,
+                    voxel_size=voxel_size_zyx,
+                    shard_size=self.job_settings.shard_size,
+                    chunk_size=self.job_settings.chunk_size,
+                    scale_factor=self.job_settings.scale_factor,
+                    n_lvls=self.job_settings.downsample_levels,
+                    downsample_mode=self.job_settings.downsample_mode,
+                    channel_name=stack_name,
+                    stack_name=f"{stack_name}.ome.zarr",
+                    logger=logging,
+                    compressor_kwargs=compressor,
+                    bucket_name=bucket_name,
+                    batch_size=self.job_settings.tensorstore_batch_size,
+                )
             )
 
     def _upload_derivatives_folder(self):
@@ -278,4 +279,3 @@ def job_entrypoint(sys_args: list):
 if __name__ == "__main__":
     multiprocessing.set_start_method("spawn", force=True)
     job_entrypoint(sys.argv[1:])
-    
