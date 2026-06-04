@@ -35,9 +35,12 @@ class TestCreateSpec(unittest.TestCase):
         self.assertEqual(spec["path"], "0")  # default scale
         self.assertEqual(spec["metadata"]["shape"], [1, 1, 100, 200, 300])
         self.assertEqual(spec["metadata"]["data_type"], "uint16")
+        # ``chunk_grid.chunk_shape`` is the inner (codec) chunk shape, not
+        # the outer shard shape, since
+        # ``88d02f4 change chunk_grid to be chunks not shards``.
         self.assertEqual(
             spec["metadata"]["chunk_grid"]["configuration"]["chunk_shape"],
-            [1, 1, 50, 100, 150],
+            [1, 1, 25, 50, 75],
         )
 
         # Check sharding codec configuration
@@ -208,6 +211,10 @@ class TestCziStackZarrWriter(unittest.TestCase):
         mock_czi_block_generator.return_value = [(fake_block, slice(0, 10))]
 
         mock_dataset = MagicMock()
+        # ``czi_stack_zarr_writer`` unpacks the write/read chunk shapes from
+        # ``dataset.chunk_layout`` (added in 3d0e76f) so they must be 5-tuples.
+        mock_dataset.chunk_layout.write_chunk.shape = (1, 1, 10, 20, 30)
+        mock_dataset.chunk_layout.read_chunk.shape = (1, 1, 5, 10, 15)
         mock_transaction_dataset = Mock()
         mock_write_result = Mock()
         mock_write_result.result.return_value = None
