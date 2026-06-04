@@ -244,11 +244,33 @@ def build_worker_script(
     pyspy_log = log_dir / f"worker_{partition:03d}.pyspy.log"
 
     js_quoted = _shell_single_quote(job_settings_json)
-    aws_export = (
-        f'export AWS_PROFILE={_shell_single_quote(aws_profile)}\n'
-        if aws_profile
-        else "# AWS_PROFILE not set; relying on default credential chain\n"
-    )
+    if aws_profile:
+        prof_q = _shell_single_quote(aws_profile)
+        # tensorstore's S3 driver does not understand SSO profiles --
+        # it only consumes AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY /
+        # AWS_SESSION_TOKEN (or IMDS, which is unavailable on HPC nodes).
+        # Materialize short-lived keys from the SSO session on the
+        # compute node and export them so both `aws s3 sync` (which can
+        # use AWS_PROFILE) and tensorstore (which needs static keys)
+        # work from the same credentials. Requires aws-cli v2 in PATH.
+        aws_export = (
+            f"export AWS_PROFILE={prof_q}\n"
+            f"echo '---- materializing SSO creds for tensorstore ----'\n"
+            f"if ! eval \"$(aws configure export-credentials "
+            f"--profile {prof_q} --format env 2>/dev/null)\"; then\n"
+            f"    echo 'WARNING: aws configure export-credentials failed;"
+            f" tensorstore S3 writes will likely fail. Run "
+            f"`aws sso login --profile {aws_profile}` on a login node.'\n"
+            f"fi\n"
+            f"echo \"AWS_ACCESS_KEY_ID set: ${{AWS_ACCESS_KEY_ID:+yes}}\"\n"
+            f"echo \"AWS_SESSION_TOKEN set: ${{AWS_SESSION_TOKEN:+yes}}\"\n"
+            f"echo \"AWS_CREDENTIAL_EXPIRATION: "
+            f"${{AWS_CREDENTIAL_EXPIRATION:-unset}}\"\n"
+        )
+    else:
+        aws_export = (
+            "# AWS_PROFILE not set; relying on default credential chain\n"
+        )
 
     # The python bootstrap turns SIGUSR1 into a faulthandler dump, then
     # delegates to the existing module entrypoint.

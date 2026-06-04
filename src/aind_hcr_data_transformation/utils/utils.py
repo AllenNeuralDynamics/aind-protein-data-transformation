@@ -212,6 +212,41 @@ def copy_file_to_s3(file_to_upload: PathLike, s3_location: str) -> None:
     subprocess.run(base_command, shell=shell, check=True)
 
 
+def get_available_cpu_count() -> int:
+    """
+    Return the number of CPUs actually available to this process.
+
+    Resolution order:
+
+    1. ``SLURM_CPUS_PER_TASK`` (set by SLURM when ``--cpus-per-task``
+       is requested).
+    2. ``os.sched_getaffinity(0)`` (Linux; honors cgroup/taskset/SLURM
+       affinity masks).
+    3. ``multiprocessing.cpu_count()`` (host total; only used as a last
+       resort because it ignores SLURM allocation and reports the full
+       node).
+
+    Returns
+    -------
+    int
+        Number of CPUs the process should plan to use. Always >= 1.
+    """
+    slurm_cpus = os.environ.get("SLURM_CPUS_PER_TASK")
+    if slurm_cpus:
+        try:
+            return max(1, int(slurm_cpus))
+        except ValueError:
+            pass
+
+    if hasattr(os, "sched_getaffinity"):
+        try:
+            return max(1, len(os.sched_getaffinity(0)))
+        except OSError:
+            pass
+
+    return max(1, multiprocessing.cpu_count())
+
+
 def validate_slices(start_slice: int, end_slice: int, len_dir: int):
     """
     Validates that the slice indices are within bounds
@@ -336,7 +371,14 @@ def read_slices_czi(
         Default: None
 
     max_workers: Optional[int] = None
-        Number of workers that will be pulling data.
+        Number of workers that will be pulling data. When ``None``
+        (default), the pool is auto-sized from the process's actual CPU
+        allocation via :func:`get_available_cpu_count` (which prefers
+        ``SLURM_CPUS_PER_TASK`` and ``os.sched_getaffinity`` over the
+        host-wide ``multiprocessing.cpu_count``). Set to ``1`` to force
+        a fully serial reader, which sidesteps a known thread-safety
+        bug in ``czifile`` that can segfault under concurrent subblock
+        reads.
         Default: None
 
     Returns
@@ -362,9 +404,16 @@ def read_slices_czi(
     new_shape[axes.index("c")] = 1  # Assume 1 channel per CZI
 
     out = create_output(out, new_shape, dtype)
-    max_workers = max_workers or min(
-        multiprocessing.cpu_count() // 2, end_slice - start_slice
-    )
+    if max_workers is None:
+        # Use the SLURM allocation (or cgroup affinity) rather than the
+        # host's total CPU count, which on shared nodes can be dozens of
+        # cores. Over-sizing the pool both ignores the resource manager's
+        # allocation and amplifies the known ``czifile`` thread-safety
+        # bug under concurrent subblock reads.
+        max_workers = min(
+            get_available_cpu_count(), end_slice - start_slice
+        )
+    max_workers = max(1, max_workers)
 
     selected_entries = subblock_directory[start_slice:end_slice]
 
@@ -470,6 +519,7 @@ def czi_block_generator(
     czi_decriptor,
     axis_jumps: Optional[int] = 128,
     slice_axis: Optional[str] = "z",
+    max_workers: Optional[int] = None,
 ):
     """
     CZI data block generator.
@@ -487,6 +537,16 @@ def czi_block_generator(
         Axis in which the jumps will be
         generated.
         Default: 'z'
+
+    max_workers: Optional[int] = None
+        Maximum number of threads used by the underlying
+        ``read_slices_czi`` call. When ``None`` (default), the reader
+        auto-sizes the thread pool from the process's CPU allocation
+        (``SLURM_CPUS_PER_TASK`` / cgroup affinity / host CPU count, in
+        that order) rather than the host's full CPU count. Set to ``1``
+        to force a fully serial reader, which sidesteps a known
+        thread-safety bug in ``czifile`` that can segfault under
+        concurrent subblock reads.
 
     Yields
     ------
@@ -528,7 +588,7 @@ def czi_block_generator(
             resize=True,
             order=0,
             out=None,
-            max_workers=None,
+            max_workers=max_workers,
         )
         yield block, slice(start_slice, end_slice)
 

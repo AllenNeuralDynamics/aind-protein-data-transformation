@@ -208,6 +208,9 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
                 stack_name=f"{stack_name}.ome.zarr",
                 compressor_kwargs=compressor,
                 bucket_name=bucket_name,
+                czi_reader_max_workers=(
+                    self.job_settings.czi_reader_max_workers
+                ),
             )
 
     def _upload_derivatives_folder(self):
