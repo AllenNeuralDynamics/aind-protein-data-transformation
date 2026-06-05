@@ -358,5 +358,55 @@ class TestReadSlicesCzi(unittest.TestCase):
             )
 
 
+class TestGetAvailableCpuCount(unittest.TestCase):
+    """Tests for ``get_available_cpu_count``."""
+
+    def test_slurm_env_takes_precedence(self):
+        """SLURM_CPUS_PER_TASK should be returned verbatim when set."""
+        with patch.dict(
+            os.environ, {"SLURM_CPUS_PER_TASK": "2"}, clear=False
+        ):
+            self.assertEqual(utils.get_available_cpu_count(), 2)
+
+    def test_slurm_env_one_returns_one(self):
+        """Explicit ``SLURM_CPUS_PER_TASK=1`` must return 1, not be
+        rounded up by any later fallback."""
+        with patch.dict(
+            os.environ, {"SLURM_CPUS_PER_TASK": "1"}, clear=False
+        ):
+            self.assertEqual(utils.get_available_cpu_count(), 1)
+
+    def test_slurm_env_zero_clamped_to_one(self):
+        """Pathological ``SLURM_CPUS_PER_TASK=0`` is clamped to 1."""
+        with patch.dict(
+            os.environ, {"SLURM_CPUS_PER_TASK": "0"}, clear=False
+        ):
+            self.assertEqual(utils.get_available_cpu_count(), 1)
+
+    def test_invalid_slurm_env_falls_through(self):
+        """Non-integer SLURM value should fall through to the next
+        resolution step instead of raising."""
+        with patch.dict(
+            os.environ,
+            {"SLURM_CPUS_PER_TASK": "not-a-number"},
+            clear=False,
+        ):
+            self.assertGreaterEqual(utils.get_available_cpu_count(), 1)
+
+    def test_affinity_used_when_no_slurm_env(self):
+        """With no SLURM env, the helper should fall back to scheduling
+        affinity (Linux) or ``multiprocessing.cpu_count``."""
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k != "SLURM_CPUS_PER_TASK"
+        }
+        with patch.dict(os.environ, env, clear=True):
+            n = utils.get_available_cpu_count()
+            self.assertGreaterEqual(n, 1)
+            if hasattr(os, "sched_getaffinity"):
+                self.assertEqual(n, len(os.sched_getaffinity(0)))
+
+
 if __name__ == "__main__":
     unittest.main()
