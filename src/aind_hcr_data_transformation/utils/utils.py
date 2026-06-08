@@ -6,12 +6,11 @@ import json
 import logging
 import multiprocessing
 import os
-import platform
-import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Optional
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 import boto3
 import matplotlib.pyplot as plt
@@ -146,70 +145,125 @@ def read_json_as_dict(filepath: PathLike) -> dict:
     return dictionary
 
 
-def sync_dir_to_s3(directory_to_upload: PathLike, s3_location: str) -> None:
+def _parse_s3_url(s3_url: str) -> Tuple[str, str]:
     """
-    Syncs a local directory to an s3 location by running aws cli in a
-    subprocess.
+    Split an ``s3://bucket/key`` URL into ``(bucket, key)``.
+
+    Parameters
+    ----------
+    s3_url : str
+        S3 URL beginning with ``s3://``.
+
+    Returns
+    -------
+    tuple of (str, str)
+        Bucket name and key. ``key`` may be empty when the URL
+        points at a bucket root.
+    """
+    if not s3_url.startswith("s3://"):
+        raise ValueError(f"Expected an s3:// URL, got: {s3_url!r}")
+    path = s3_url[len("s3://"):]
+    bucket, _, key = path.partition("/")
+    if not bucket:
+        raise ValueError(
+            f"Could not parse bucket from URL: {s3_url!r}"
+        )
+    return bucket, key
+
+
+def sync_dir_to_s3(
+    directory_to_upload: PathLike, s3_location: str
+) -> None:
+    """
+    Sync a local directory to an S3 prefix using boto3.
+
+    Walks ``directory_to_upload`` recursively and uploads every
+    file to ``<s3_location>/<relative path>``. Objects that already
+    exist in S3 with the same size are skipped, mirroring the
+    size-based short-circuit of ``aws s3 sync``.
 
     Parameters
     ----------
     directory_to_upload : PathLike
+        Local directory whose contents will be uploaded.
     s3_location : str
+        Destination prefix of the form ``s3://bucket/prefix``.
 
     Returns
     -------
     None
-
     """
-    # Upload to s3
-    if platform.system() == "Windows":
-        shell = True
-    else:
-        shell = False
+    directory = Path(directory_to_upload)
+    if not directory.is_dir():
+        raise FileNotFoundError(f"{directory} is not a directory.")
 
-    base_command = [
-        "aws",
-        "s3",
-        "sync",
-        str(directory_to_upload),
-        s3_location,
-        "--only-show-errors",
-    ]
+    bucket, prefix = _parse_s3_url(s3_location)
+    prefix = prefix.rstrip("/")
 
-    subprocess.run(base_command, shell=shell, check=True)
+    s3_client = boto3.client("s3")
+
+    # Build map of existing object sizes under the prefix so we can
+    # skip files that already match (size-only check).
+    existing = {}
+    list_prefix = f"{prefix}/" if prefix else ""
+    paginator = s3_client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket, Prefix=list_prefix):
+        for obj in page.get("Contents") or []:
+            existing[obj["Key"]] = obj["Size"]
+
+    files = [p for p in directory.rglob("*") if p.is_file()]
+    if not files:
+        return
+
+    def _upload(local_path: Path) -> None:
+        rel = local_path.relative_to(directory).as_posix()
+        key = f"{prefix}/{rel}" if prefix else rel
+        if existing.get(key) == local_path.stat().st_size:
+            return
+        s3_client.upload_file(str(local_path), bucket, key)
+
+    max_workers = min(8, len(files))
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        # Materialize the iterator so exceptions in worker threads
+        # propagate to the caller.
+        for _ in pool.map(_upload, files):
+            pass
 
 
-def copy_file_to_s3(file_to_upload: PathLike, s3_location: str) -> None:
+def copy_file_to_s3(
+    file_to_upload: PathLike, s3_location: str
+) -> None:
     """
-    Syncs a local directory to an s3 location by running aws cli in a
-    subprocess.
+    Upload a single local file to S3 using boto3.
+
+    When ``s3_location`` ends with ``/`` (or has an empty key) the
+    file is uploaded under that prefix using its basename;
+    otherwise it is uploaded to the exact key given. This mirrors
+    ``aws s3 cp`` semantics.
 
     Parameters
     ----------
     file_to_upload : PathLike
+        Local file path.
     s3_location : str
+        Destination URL of the form ``s3://bucket/key`` or
+        ``s3://bucket/prefix/``.
 
     Returns
     -------
     None
-
     """
-    # Upload to s3
-    if platform.system() == "Windows":
-        shell = True
-    else:
-        shell = False
+    file_path = Path(file_to_upload)
+    if not file_path.is_file():
+        raise FileNotFoundError(f"{file_path} is not a file.")
 
-    base_command = [
-        "aws",
-        "s3",
-        "cp",
-        str(file_to_upload),
-        s3_location,
-        "--only-show-errors",
-    ]
+    bucket, key = _parse_s3_url(s3_location)
+    if not key or s3_location.endswith("/"):
+        base = key.rstrip("/")
+        key = f"{base}/{file_path.name}" if base else file_path.name
 
-    subprocess.run(base_command, shell=shell, check=True)
+    s3_client = boto3.client("s3")
+    s3_client.upload_file(str(file_path), bucket, key)
 
 
 def get_available_cpu_count() -> int:
