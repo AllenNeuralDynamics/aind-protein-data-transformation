@@ -22,7 +22,7 @@ from aind_hcr_data_transformation.models import (
 )
 from aind_hcr_data_transformation.utils import utils
 
-logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "DEBUG"))
 
 
 class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
@@ -211,6 +211,9 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
                 compressor_kwargs=compressor,
                 bucket_name=bucket_name,
                 batch_size=self.job_settings.tensorstore_batch_size,
+                czi_reader_max_workers=(
+                    self.job_settings.czi_reader_max_workers
+                ),
             )
             )
 

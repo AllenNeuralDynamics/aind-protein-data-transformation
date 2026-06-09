@@ -318,6 +318,7 @@ async def czi_stack_zarr_writer(
     downsample_mode: Optional[str] = "mean",
     batch_size: Optional[int] = 6,
     bucket_name: Optional[str] = None,
+    czi_reader_max_workers: Optional[int] = None,
 ):
     """
     Writes a fused Zeiss channel in OMEZarr
@@ -458,6 +459,7 @@ async def czi_stack_zarr_writer(
             czi,
             axis_jumps=shard_size[-3],
             slice_axis="z",
+            max_workers=czi_reader_max_workers,
         ):
             region = (
                 slice(None),
