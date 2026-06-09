@@ -226,6 +226,7 @@ class TestReadSlicesCzi(unittest.TestCase):
                 "concurrent.futures.ThreadPoolExecutor"
             ) as mock_executor_class,
         ):
+
             mock_squeeze.return_value = "squeezed_result"
             mock_executor_class.return_value.__enter__.return_value = (
                 mock_executor
@@ -289,6 +290,7 @@ class TestReadSlicesCzi(unittest.TestCase):
                 "aind_hcr_data_transformation.utils.utils.ThreadPoolExecutor"
             ) as mock_executor_class,
         ):
+
             mock_squeeze.return_value = "squeezed_result"
             mock_executor = Mock()
             mock_executor_class.return_value.__enter__.return_value = (
@@ -347,6 +349,7 @@ class TestReadSlicesCzi(unittest.TestCase):
                 side_effect=track_parallel_creation,
             ),
         ):
+
             mock_squeeze.return_value = "squeezed_result"
 
             utils.read_slices_czi(
