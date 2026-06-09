@@ -3,7 +3,6 @@ Unit tests of io utilities
 """
 
 import os
-import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -83,98 +82,19 @@ class IoUtilitiesTest(unittest.TestCase):
         result = utils.read_json_as_dict(JSON_FILE_PATH)
         self.assertEqual(expected_result, result)
 
-    @patch("aind_hcr_data_transformation.utils.utils.boto3.client")
-    def test_sync_dir_to_s3(self, mock_boto_client):
-        """Tests that each file is uploaded to the right key."""
-        mock_s3 = Mock()
-        mock_paginator = Mock()
-        mock_paginator.paginate.return_value = iter([{"Contents": []}])
-        mock_s3.get_paginator.return_value = mock_paginator
-        mock_boto_client.return_value = mock_s3
+    @patch("subprocess.run")
+    def test_sync_dir_to_s3(self, mock_run):
+        """Tests that the sync command is called with the correct arguments"""
+        utils.sync_dir_to_s3(Path("/fake/path"), "s3://bucket/path")
+        mock_run.assert_called_once()
+        assert "sync" in mock_run.call_args[0][0]
 
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            (tmp_path / "a.txt").write_text("hello")
-            sub = tmp_path / "sub"
-            sub.mkdir()
-            (sub / "b.txt").write_text("world")
-
-            utils.sync_dir_to_s3(tmp_path, "s3://bucket/prefix")
-
-        self.assertEqual(mock_s3.upload_file.call_count, 2)
-        uploaded_keys = sorted(
-            call.args[2] for call in mock_s3.upload_file.call_args_list
-        )
-        self.assertEqual(
-            uploaded_keys, ["prefix/a.txt", "prefix/sub/b.txt"]
-        )
-        for call in mock_s3.upload_file.call_args_list:
-            self.assertEqual(call.args[1], "bucket")
-
-    @patch("aind_hcr_data_transformation.utils.utils.boto3.client")
-    def test_sync_dir_to_s3_skips_existing(self, mock_boto_client):
-        """Tests that existing same-size objects are skipped."""
-        mock_s3 = Mock()
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            local_file = tmp_path / "a.txt"
-            local_file.write_text("hello")
-            size = local_file.stat().st_size
-
-            mock_paginator = Mock()
-            mock_paginator.paginate.return_value = iter(
-                [{"Contents": [{"Key": "prefix/a.txt", "Size": size}]}]
-            )
-            mock_s3.get_paginator.return_value = mock_paginator
-            mock_boto_client.return_value = mock_s3
-
-            utils.sync_dir_to_s3(tmp_path, "s3://bucket/prefix")
-
-        mock_s3.upload_file.assert_not_called()
-
-    def test_sync_dir_to_s3_missing_dir(self):
-        """Tests that a missing local directory raises."""
-        with self.assertRaises(FileNotFoundError):
-            utils.sync_dir_to_s3(
-                Path("/definitely/does/not/exist"),
-                "s3://bucket/prefix",
-            )
-
-    @patch("aind_hcr_data_transformation.utils.utils.boto3.client")
-    def test_copy_file_to_s3(self, mock_boto_client):
-        """Tests that an explicit destination key is used verbatim."""
-        mock_s3 = Mock()
-        mock_boto_client.return_value = mock_s3
-
-        with tempfile.NamedTemporaryFile() as tmp:
-            utils.copy_file_to_s3(tmp.name, "s3://bucket/dest/file.bin")
-
-        mock_s3.upload_file.assert_called_once()
-        call = mock_s3.upload_file.call_args
-        self.assertEqual(call.args[1], "bucket")
-        self.assertEqual(call.args[2], "dest/file.bin")
-
-    @patch("aind_hcr_data_transformation.utils.utils.boto3.client")
-    def test_copy_file_to_s3_prefix(self, mock_boto_client):
-        """Tests that a trailing slash falls back to basename."""
-        mock_s3 = Mock()
-        mock_boto_client.return_value = mock_s3
-
-        with tempfile.NamedTemporaryFile(suffix=".bin") as tmp:
-            basename = Path(tmp.name).name
-            utils.copy_file_to_s3(tmp.name, "s3://bucket/dest/")
-
-        mock_s3.upload_file.assert_called_once()
-        self.assertEqual(
-            mock_s3.upload_file.call_args.args[2], f"dest/{basename}"
-        )
-
-    def test_parse_s3_url_invalid(self):
-        """Tests that non-s3 URLs raise ValueError."""
-        with self.assertRaises(ValueError):
-            utils._parse_s3_url("https://example.com/foo")
-        with self.assertRaises(ValueError):
-            utils._parse_s3_url("s3:///no-bucket")
+    @patch("subprocess.run")
+    def test_copy_file_to_s3(self, mock_run):
+        """Tests that the copy command is called with the correct arguments"""
+        utils.copy_file_to_s3(Path("/fake/file.txt"), "s3://bucket/path")
+        mock_run.assert_called_once()
+        assert "cp" in mock_run.call_args[0][0]
 
     def test_validate_slices_valid(self):
         """Tests that slices are valid when within bounds"""

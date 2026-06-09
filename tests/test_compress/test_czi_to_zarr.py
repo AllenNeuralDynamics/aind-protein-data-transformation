@@ -136,29 +136,6 @@ class TestCreateDownsampleDataset(unittest.TestCase):
         mock_downsampled_dataset.read.return_value = mock_read_result
 
         mock_output_dataset = Mock()
-        # create_downsample_dataset now unpacks the 5-tuple
-        # `down_dataset.chunk_layout.write_chunk.shape` to iterate
-        # regions, and logs `.read_chunk.shape` alongside it.
-        mock_output_dataset.chunk_layout.write_chunk.shape = (
-            1,
-            1,
-            50,
-            100,
-            150,
-        )
-        mock_output_dataset.chunk_layout.read_chunk.shape = (
-            1,
-            1,
-            25,
-            50,
-            75,
-        )
-        # The region loop subscripts both datasets, so __getitem__
-        # needs to be configured (plain Mock isn't subscriptable).
-        mock_downsampled_dataset.__getitem__ = Mock(
-            return_value=MagicMock()
-        )
-        mock_output_dataset.__getitem__ = Mock(return_value=MagicMock())
         mock_write_result = Mock()
         mock_write_result.result.return_value = None
         mock_transaction_dataset = Mock()
