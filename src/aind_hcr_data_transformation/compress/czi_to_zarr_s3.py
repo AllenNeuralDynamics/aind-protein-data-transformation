@@ -25,16 +25,16 @@ from aind_hcr_data_transformation.utils.utils import (
 
 
 def create_spec(
-    output_path: str,
-    data_shape: list,
-    data_dtype: str,
-    shard_shape: list,
-    chunk_shape: list,
-    zyx_resolution: list,
-    compressor_kwargs: dict,
-    bucket_name: str = None,
-    scale: str = "0",
-    aws_region: str = "us-west-2",
+        output_path: str,
+        data_shape: list,
+        data_dtype: str,
+        shard_shape: list,
+        chunk_shape: list,
+        zyx_resolution: list,
+        compressor_kwargs: dict,
+        bucket_name,
+        scale: str = "0",
+        aws_region: str = "us-west-2",
 ) -> dict:
     """
     Create a TensorStore Zarr v3 specification for writing
@@ -81,7 +81,6 @@ def create_spec(
             "bucket": bucket_name,
             "aws_region": aws_region,
             "path": output_path,
-            "aws_credentials": {"type": "default"},
         },
         "path": str(scale),
         "recheck_cached_metadata": False,
@@ -137,13 +136,13 @@ def create_spec(
 
 
 def create_downsample_dataset(
-    dataset_path: str,
-    start_scale: int,
-    downsample_factor: list,
-    downsample_mode: str,
-    compressor_kwargs: dict,
-    bucket_name: str,
-    aws_region: str = "us-west-2",
+        dataset_path: str,
+        start_scale: int,
+        downsample_factor: list,
+        downsample_mode: str,
+        compressor_kwargs: dict,
+        bucket_name: str,
+        aws_region: str = "us-west-2",
 ):
     """
     Create a new downsampled scale level in a multi-scale Zarr v3 dataset.
@@ -222,37 +221,23 @@ def create_downsample_dataset(
     )
 
     down_dataset = ts.open(down_spec).result()
-    try:
-        with ts.Transaction() as transaction:
-            downsampled_data = downsampled_dataset.with_transaction(
-                transaction
-            ).read().result()
-    except Exception as e:
-        logging.error(f"Failed to read downsampled data: {e}")
-        raise e
-    try:
-        with ts.Transaction() as transaction:
-            down_dataset.with_transaction(transaction).write(
-                downsampled_data
-            ).result()
-        logging.info(f"Completed downsample scale {new_scale} write")
-    except Exception as e:
-        logging.error(f"Failed to write downsample scale {new_scale}: {e}")
-        raise e
+    downsampled_data = downsampled_dataset.read().result()
+    down_dataset.write(downsampled_data).result()
+
 
 def czi_stack_zarr_writer(
-    czi_path: str,
-    output_path: str,
-    voxel_size: List[float],
-    shard_size: List[int],
-    chunk_size: List[int],
-    scale_factor: List[int],
-    n_lvls: int,
-    channel_name: str,
-    stack_name: str,
-    compressor_kwargs: dict,
-    bucket_name: str,
-    downsample_mode: Optional[str] = "mean",
+        czi_path: str,
+        output_path: str,
+        voxel_size: List[float],
+        shard_size: List[int],
+        chunk_size: List[int],
+        scale_factor: List[int],
+        n_lvls: int,
+        channel_name: str,
+        stack_name: str,
+        compressor_kwargs: dict,
+        bucket_name: str,
+        downsample_mode: Optional[str] = "mean",
 ):
     """
     Writes a fused Zeiss channel in OMEZarr
@@ -382,11 +367,10 @@ def czi_stack_zarr_writer(
         dataset = ts.open(spec).result()
 
         # shard size must be TCZYX order
-        block_count = 0
         for block, axis_area in czi_block_generator(
-            czi,
-            axis_jumps=shard_size[-3],
-            slice_axis="z",
+                czi,
+                axis_jumps=shard_size[-3],
+                slice_axis="z",
         ):
             region = (
                 slice(None),
@@ -395,21 +379,7 @@ def czi_stack_zarr_writer(
                 slice(0, dataset_shape[-2]),
                 slice(0, dataset_shape[-1]),
             )
-            try:
-                with ts.Transaction() as transaction:
-                    dataset[region].with_transaction(transaction).write(
-                        pad_array_n_d(block)
-                    ).result()
-                block_count += 1
-                logging.info(
-                    f"Completed block {block_count} write for z-slices {axis_area}"
-                )
-            except Exception as e:
-                logging.error(
-                    f"Failed to write block {block_count} for z-slices {axis_area}: {e}"
-                )
-                raise e
-            # dataset[region].write(pad_array_n_d(block)).result()
+            dataset[region].write(pad_array_n_d(block)).result()
 
         # Waiting for the tensorstore tasks
         # asyncio.run(write_tasks(tasks, batch_size=batch_size))

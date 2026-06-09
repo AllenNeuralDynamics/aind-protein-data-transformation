@@ -1,7 +1,6 @@
 """Module to handle zeiss data compression"""
 
 import logging
-import multiprocessing
 import os
 import sys
 from pathlib import Path
@@ -254,8 +253,6 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
 
 def job_entrypoint(sys_args: list):
     """Main function"""
-    multiprocessing.set_start_method("spawn")
-
     parser = get_parser()
     cli_args = parser.parse_args(sys_args)
     if cli_args.job_settings is not None:
