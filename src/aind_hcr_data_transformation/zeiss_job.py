@@ -254,7 +254,7 @@ class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
 
 def job_entrypoint(sys_args: list):
     """Main function"""
-    multiprocessing.set_start_method("spawn", force=True)
+    multiprocessing.set_start_method("spawn")
 
     parser = get_parser()
     cli_args = parser.parse_args(sys_args)
