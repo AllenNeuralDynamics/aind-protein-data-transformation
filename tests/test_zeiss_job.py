@@ -4,7 +4,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from natsort import natsorted
 
@@ -255,7 +255,8 @@ class ZeissCompressionTest(unittest.TestCase):
         self.assertEqual(settings.czi_reader_max_workers, 1)
 
     @patch(
-        "aind_hcr_data_transformation.zeiss_job.czi_stack_zarr_writer"
+        "aind_hcr_data_transformation.zeiss_job.czi_stack_zarr_writer",
+        new_callable=AsyncMock,
     )
     @patch.object(
         ZeissCompressionJob, "_get_voxel_resolution", return_value=[1, 1, 1]
