@@ -21,7 +21,7 @@ from aind_hcr_data_transformation.models import (
 )
 from aind_hcr_data_transformation.utils import utils
 
-logging.basicConfig(level=os.getenv("LOG_LEVEL", "DEBUG"))
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
 
 class ZeissCompressionJob(GenericEtl[ZeissJobSettings]):
