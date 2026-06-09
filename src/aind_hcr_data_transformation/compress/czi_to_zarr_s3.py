@@ -300,7 +300,6 @@ def czi_stack_zarr_writer(
     compressor_kwargs: dict,
     bucket_name: str,
     downsample_mode: Optional[str] = "mean",
-    czi_reader_max_workers: Optional[int] = None,
 ):
     """
     Writes a fused Zeiss channel in OMEZarr
@@ -359,13 +358,6 @@ def czi_stack_zarr_writer(
     bucket_name: Optional[str] = None
         Bucket name to upload the dataset.
         If it is None, then it will be stored locally.
-
-    czi_reader_max_workers: Optional[int] = None
-        Maximum number of threads used by the CZI subblock reader. When
-        ``None`` (the default), the reader auto-sizes the thread pool from
-        the available CPU count. Set to ``1`` to force a fully serial
-        reader, which sidesteps a known thread-safety bug in ``czifile``
-        that can segfault under concurrent subblock reads.
     """
     output_path = f"{output_path}/{stack_name}"
     start_time = time.time()
@@ -461,7 +453,6 @@ def czi_stack_zarr_writer(
             czi,
             axis_jumps=z_jump,
             slice_axis="z",
-            max_workers=czi_reader_max_workers,
         ):
             # Normalize to 5D (t,c,z,y,x)
             z_block = pad_array_n_d(z_block)
